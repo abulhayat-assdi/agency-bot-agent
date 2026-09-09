@@ -32,7 +32,7 @@ export async function loginAction(_previousState: LoginFormState, formData: Form
 
   const headerValues = await headers();
   const rateLimitKey = getClientKey(parsed.data.email, headerValues);
-  const rateLimit = checkLoginRateLimit(rateLimitKey);
+  const rateLimit = await checkLoginRateLimit(rateLimitKey);
 
   if (!rateLimit.allowed) {
     logger.warn("login rate limit exceeded", { email: parsed.data.email });
@@ -46,7 +46,7 @@ export async function loginAction(_previousState: LoginFormState, formData: Form
     return { error: "Invalid admin credentials." };
   }
 
-  resetLoginRateLimit(rateLimitKey);
+  await resetLoginRateLimit(rateLimitKey);
 
   const token = await createSessionToken(user);
   const cookieStore = await cookies();

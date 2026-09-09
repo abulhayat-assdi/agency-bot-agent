@@ -23,19 +23,22 @@ npm run auth:hash-password -- <password>
 - Use the Meta ad account timezone for reporting dates.
 - Use nullable values and explicit availability states instead of converting missing metrics to zero.
 - Use `entity_key` with nullable `entity_id` for polymorphic metric scopes so account-level rows can still be uniquely constrained.
+- Use `bigint` for large delivery/click counters that may exceed PostgreSQL `integer` range.
 - Use `breakdown_hash` for stable uniqueness of JSON breakdown values.
 
 ## Implemented schema
 
 Schema source: `src/server/db/schema.ts`
 
-Migration: `drizzle/0000_careful_nick_fury.sql`
+Migrations:
+
+- `drizzle/0000_careful_nick_fury.sql`: initial schema
+- `drizzle/0001_mushy_thor_girl.sql`: audit hardening migration removing unused sessions table and converting large counters to `bigint`
 
 ### Tenancy and users
 
 - `agencies`
 - `admin_users`
-- `sessions`
 - `login_attempts`
 
 ### Client hierarchy

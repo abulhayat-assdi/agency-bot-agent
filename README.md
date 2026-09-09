@@ -27,6 +27,7 @@ Milestone 0 established the repository baseline, current environment findings, v
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Audit notes](docs/AUDIT.md)
 - [Authentication](docs/AUTHENTICATION.md)
 - [Meta API assumptions](docs/META_API.md)
 - [Database design](docs/DATABASE.md)

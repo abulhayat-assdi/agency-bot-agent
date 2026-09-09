@@ -86,6 +86,21 @@ Implemented scope:
 
 Commit: `feat: add database schema and data layer`
 
+
+## Foundation audit after Milestone 3
+
+Status: complete when commit `chore: audit and harden existing foundation` is pushed.
+
+Audit/fix scope:
+
+- Keep one coherent signed-cookie session architecture and remove the unused sessions table
+- Add forward migration for session-table removal and metric counter type hardening
+- Move login rate limiting behind an interface with in-memory fallback and documented Redis future
+- Convert large metric counters to PostgreSQL `bigint`
+- Document audit decisions and limitations
+
+Commit: `chore: audit and harden existing foundation`
+
 ## Milestone 4: Mock Meta API
 
 Mock provider supporting hierarchy, metrics, breakdowns, pagination, missing fields, unsupported breakdowns, API errors, and rate limiting simulation.

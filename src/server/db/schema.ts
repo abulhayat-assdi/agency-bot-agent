@@ -2,6 +2,7 @@ import {
   boolean,
   date,
   index,
+  bigint,
   integer,
   jsonb,
   numeric,
@@ -88,21 +89,6 @@ export const adminUsers = pgTable(
     ...archiveColumns
   },
   (table) => [uniqueIndex("admin_users_email_uidx").on(table.email), index("admin_users_agency_idx").on(table.agencyId)]
-);
-
-export const sessions = pgTable(
-  "sessions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id").notNull().references(() => adminUsers.id, { onDelete: "cascade" }),
-    tokenHash: text("token_hash").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    ipHash: text("ip_hash"),
-    userAgentHash: text("user_agent_hash"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    revokedAt: timestamp("revoked_at", { withTimezone: true })
-  },
-  (table) => [uniqueIndex("sessions_token_hash_uidx").on(table.tokenHash), index("sessions_user_expires_idx").on(table.userId, table.expiresAt)]
 );
 
 export const loginAttempts = pgTable(
@@ -329,11 +315,11 @@ const metricColumns = {
   currency: varchar("currency", { length: 3 }).notNull(),
   attributionContext: jsonb("attribution_context_json").$type<Record<string, unknown>>().notNull().default({}),
   spend: numeric("spend", { precision: 18, scale: 6 }),
-  impressions: integer("impressions"),
-  reach: integer("reach"),
-  clicks: integer("clicks"),
-  linkClicks: integer("link_clicks"),
-  outboundClicks: integer("outbound_clicks"),
+  impressions: bigint("impressions", { mode: "number" }),
+  reach: bigint("reach", { mode: "number" }),
+  clicks: bigint("clicks", { mode: "number" }),
+  linkClicks: bigint("link_clicks", { mode: "number" }),
+  outboundClicks: bigint("outbound_clicks", { mode: "number" }),
   conversions: numeric("conversions", { precision: 18, scale: 6 }),
   conversionValue: numeric("conversion_value", { precision: 18, scale: 6 }),
   videoMetrics: jsonb("video_metrics_json").$type<Record<string, unknown>>().notNull().default({}),
