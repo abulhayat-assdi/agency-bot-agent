@@ -170,7 +170,19 @@ Commit: `feat: implement real dashboard analytics`
 
 ## Milestone 7: Deep Reports
 
+Status: complete when commit `feat: add campaign adset and ad reports` is pushed.
+
 Campaign, ad set, and individual ad reporting.
+
+Implemented scope:
+
+- Campaign report route with KPI grid, child ad set table, period comparison, daily trend, anomalies, and report-local breakdown previews
+- Ad set report route with KPI grid, child ad table, optimization/billing context, period comparison, daily trend, anomalies, and report-local breakdown previews
+- Individual ad report route with creative metadata, attribution/reporting context, KPI grid, data sufficiency, period comparison, daily trend, breakdown previews, and disabled Analyze This Ad action pending AI milestone
+- Breadcrumb navigation for Client → Account → Campaign → Ad Set → Ad
+- Reusable report components for KPI grids, comparison, trend, child performance, breakdown previews, anomalies, data health, and AI action placeholder
+- Mock-backed report data service with tests
+- Deep report documentation
 
 Commit: `feat: add campaign adset and ad reports`
 

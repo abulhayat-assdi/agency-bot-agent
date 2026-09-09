@@ -4,7 +4,7 @@ Production-oriented, multi-client, read-only Meta Ads intelligence and analytics
 
 ## Current status
 
-Milestone 0 established the repository baseline, current environment findings, verified Meta API assumptions, and the architecture plan. Milestone 1 initializes the Next.js/TypeScript/Tailwind application foundation. Milestone 2 adds admin authentication, signed session cookies, route protection, logout, and auth tests. Milestone 3 adds the PostgreSQL schema, Drizzle migrations, repository layer, and mock seed foundation. Milestone 4 adds a deterministic mock Meta adapter. Milestone 5 adds the deterministic analytics engine for metrics, comparisons, trends, rankings, sufficiency, anomalies, timezone date ranges, and currency safety. Milestone 6 adds mock-backed real dashboard analytics for overview, clients, and ad accounts.
+Milestone 0 established the repository baseline, current environment findings, verified Meta API assumptions, and the architecture plan. Milestone 1 initializes the Next.js/TypeScript/Tailwind application foundation. Milestone 2 adds admin authentication, signed session cookies, route protection, logout, and auth tests. Milestone 3 adds the PostgreSQL schema, Drizzle migrations, repository layer, and mock seed foundation. Milestone 4 adds a deterministic mock Meta adapter. Milestone 5 adds the deterministic analytics engine for metrics, comparisons, trends, rankings, sufficiency, anomalies, timezone date ranges, and currency safety. Milestone 6 adds mock-backed real dashboard analytics for overview, clients, and ad accounts. Milestone 7 adds campaign, ad set, and individual ad deep reports with drill-down navigation.
 
 ## Repository
 
@@ -34,6 +34,7 @@ Milestone 0 established the repository baseline, current environment findings, v
 - [Database design](docs/DATABASE.md)
 - [Analytics design](docs/ANALYTICS.md)
 - [Dashboard analytics](docs/DASHBOARD.md)
+- [Deep reports](docs/REPORTS.md)
 - [AI architecture](docs/AI.md)
 - [Email reporting](docs/EMAIL.md)
 - [Security](docs/SECURITY.md)

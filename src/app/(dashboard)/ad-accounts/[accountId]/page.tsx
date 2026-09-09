@@ -61,7 +61,7 @@ export default async function AdAccountOverviewPage({ params }: { params: Promis
           <MetricsTable
             columns={["Campaign", "Spend", "Impressions", "Clicks", "CTR", "CPC", "Conv.", "Value", "ROAS"]}
             rows={campaigns.map((campaign) => [
-              <Button key="campaign" asChild variant="ghost" size="sm"><Link href={`/dashboard?accountId=${accountId}`}>{campaign.name}</Link></Button>,
+              <Button key="campaign" asChild variant="ghost" size="sm"><Link href={`/campaigns/${campaign.id}`}>{campaign.name}</Link></Button>,
               formatMetric(campaign.metrics.spend, { kind: "currency", currency: campaign.currency }),
               formatMetric(campaign.metrics.impressions),
               formatMetric(campaign.metrics.clicks),
