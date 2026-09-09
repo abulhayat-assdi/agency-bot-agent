@@ -207,7 +207,23 @@ Commit: `feat: add meta breakdown analytics`
 
 ## Milestone 9: Trends and Comparison
 
+Status: complete when commit `feat: add comparison and trend analytics` is pushed.
+
 Period comparison, entity comparison, trend views, performance ranking.
+
+Implemented scope:
+
+- Mock-backed trend dashboard data service
+- Current period vs previous equivalent period comparisons
+- Campaign vs campaign, ad set vs ad set, and ad vs ad ranking views
+- Metric selection for ROAS, CPA, CTR, CPC, conversions, and spend
+- Account-level comparison table with absolute change, percentage change, and direction
+- Top movers by absolute percentage movement
+- Account-level daily trend chart for spend, clicks, conversions, and ROAS
+- Deterministic anomaly panel
+- Data sufficiency labels in ranking tables
+- Tests for levels, ranking outputs, previous-period/date handling, and route-compatible report links
+- Trends documentation
 
 Commit: `feat: add comparison and trend analytics`
 
