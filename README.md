@@ -4,7 +4,7 @@ Production-oriented, multi-client, read-only Meta Ads intelligence and analytics
 
 ## Current status
 
-Milestone 0 establishes the repository baseline, current environment findings, verified Meta API assumptions, and the architecture plan. Implementation starts in controlled follow-up milestones.
+Milestone 0 established the repository baseline, current environment findings, verified Meta API assumptions, and the architecture plan. Milestone 1 initializes the Next.js/TypeScript/Tailwind application foundation.
 
 ## Repository
 
@@ -39,7 +39,7 @@ Milestone 0 establishes the repository baseline, current environment findings, v
 
 ## Local environment
 
-No package manager files existed at Milestone 0. Milestone 1 will initialize the application using the selected Next.js TypeScript stack and will add lint, typecheck, and test scripts.
+Milestone 1 uses npm with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style primitives, ESLint, Prettier, and Vitest. Use `npm run dev`, `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build` for local validation.
 
 ## Security
 

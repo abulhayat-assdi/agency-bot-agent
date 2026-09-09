@@ -27,7 +27,22 @@ Validation:
 
 ## Milestone 1: Project foundation
 
+Status: complete when commit `feat: initialize application architecture` is pushed.
+
 Initialize Next.js, TypeScript, Tailwind CSS, shadcn/ui-style component foundation, layout, navigation, configuration, and basic error handling.
+
+Implemented scope:
+
+- npm-based Next.js application scaffold
+- TypeScript strict configuration
+- Tailwind CSS theme and global styles
+- shadcn/ui-style primitives and `components.json`
+- Dashboard app shell and navigation route placeholders
+- Loading, not-found, and dashboard error states
+- Environment configuration validation
+- Structured logger foundation
+- Health API route
+- Vitest foundation test for environment configuration
 
 Commit: `feat: initialize application architecture`
 
