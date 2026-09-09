@@ -21,6 +21,7 @@ describe("environment configuration", () => {
     expect(getRuntimeReadiness(config)).toEqual(
       expect.objectContaining({
         app: true,
+        authConfigured: false,
         metaConfigured: true,
         aiConfigured: true,
         emailConfigured: true

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { ShieldCheck, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { primaryNavigation } from "@/components/layout/navigation";
+import { logoutAction } from "@/server/auth/actions";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -55,7 +57,12 @@ export function AppShell({ children }: AppShellProps) {
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="success">Mock provider ready</Badge>
-              <Badge variant="secondary">Milestone 1</Badge>
+              <Badge variant="secondary">Milestone 2</Badge>
+              <form action={logoutAction}>
+                <Button variant="outline" size="sm" type="submit">
+                  Sign out
+                </Button>
+              </form>
             </div>
           </div>
         </header>

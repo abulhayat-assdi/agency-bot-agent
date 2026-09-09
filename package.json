@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@radix-ui/react-slot": "latest",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "latest",
     "clsx": "latest",
+    "jose": "^6.2.12",
     "lucide-react": "latest",
     "next": "latest",
     "react": "latest",
@@ -28,6 +30,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",

@@ -4,7 +4,7 @@ Production-oriented, multi-client, read-only Meta Ads intelligence and analytics
 
 ## Current status
 
-Milestone 0 established the repository baseline, current environment findings, verified Meta API assumptions, and the architecture plan. Milestone 1 initializes the Next.js/TypeScript/Tailwind application foundation.
+Milestone 0 established the repository baseline, current environment findings, verified Meta API assumptions, and the architecture plan. Milestone 1 initializes the Next.js/TypeScript/Tailwind application foundation. Milestone 2 adds admin authentication, signed session cookies, route protection, logout, and auth tests.
 
 ## Repository
 
@@ -27,6 +27,7 @@ Milestone 0 established the repository baseline, current environment findings, v
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Authentication](docs/AUTHENTICATION.md)
 - [Meta API assumptions](docs/META_API.md)
 - [Database design](docs/DATABASE.md)
 - [Analytics design](docs/ANALYTICS.md)

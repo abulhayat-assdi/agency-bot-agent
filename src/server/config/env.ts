@@ -5,6 +5,9 @@ const envSchema = z.object({
   APP_URL: z.string().url().default("http://localhost:3000"),
   APP_NAME: z.string().min(1).default("AI Meta Ads Intelligence Platform"),
   SESSION_SECRET: z.string().min(32).optional(),
+  ADMIN_BOOTSTRAP_EMAIL: z.string().email().optional(),
+  ADMIN_BOOTSTRAP_PASSWORD: z.string().min(8).optional(),
+  ADMIN_BOOTSTRAP_PASSWORD_HASH: z.string().optional(),
   DATABASE_URL: z.string().min(1).optional(),
   REDIS_URL: z.string().min(1).optional(),
   SYNC_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
@@ -36,6 +39,7 @@ export function getAppConfig(env: Record<string, string | undefined> = process.e
 export function getRuntimeReadiness(config: AppConfig) {
   return {
     app: true,
+    authConfigured: Boolean(config.ADMIN_BOOTSTRAP_EMAIL && (config.ADMIN_BOOTSTRAP_PASSWORD || config.ADMIN_BOOTSTRAP_PASSWORD_HASH)),
     databaseConfigured: Boolean(config.DATABASE_URL),
     redisConfigured: Boolean(config.REDIS_URL),
     metaProvider: config.META_PROVIDER,

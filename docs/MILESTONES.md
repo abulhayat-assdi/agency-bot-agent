@@ -48,7 +48,22 @@ Commit: `feat: initialize application architecture`
 
 ## Milestone 2: Authentication
 
+Status: complete when commit `feat: add admin authentication` is pushed.
+
 Admin login, password hashing, sessions, cookies, route protection, login rate limiting.
+
+Implemented scope:
+
+- `/login` admin login route and accessible form
+- Server action credential validation
+- Bcrypt password hash verification support
+- Signed JWT session creation and verification with `jose`
+- HTTP-only, SameSite session cookie with production `secure` behavior
+- Next.js proxy route protection for dashboard and API routes
+- Logout server action
+- Best-effort in-memory login rate limiting
+- Auth documentation
+- Unit tests for credential validation and session verification
 
 Commit: `feat: add admin authentication`
 
