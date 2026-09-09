@@ -252,7 +252,22 @@ Commit: `feat: add redis bullmq sync jobs`
 
 ## Milestone 11: OpenAI AI Analyst
 
+Status: complete when commit `feat: add grounded openai ai analyst` is pushed.
+
 Grounded AI tool layer, chat, individual ad analysis, anomaly explanation.
+
+Implemented scope:
+
+- Intent classification for summaries, top performers, bottom performers, anomalies, selected-ad analysis, and data availability
+- Controlled read-only tool evidence layer backed by dashboard, trend, and report services
+- OpenAI chat completion integration when `OPENAI_API_KEY` is configured
+- Deterministic grounded fallback when OpenAI is not configured or unavailable
+- Strict system prompt forbidding invented metrics, actual profit claims, write actions, and null-to-zero transformations
+- `/ai-analyst` UI with account/date/question controls, suggested prompts, grounded response output, and visible evidence cards
+- `/api/ai/analyst` protected POST route
+- `Analyze This Ad` links from individual ad reports into constrained ad-level AI analysis
+- Tests for intent routing, grounded evidence, unavailable ad behavior, deterministic fallback, and secret redaction expectations
+- AI architecture documentation updated to match implementation
 
 Commit: `feat: add grounded openai ai analyst`
 

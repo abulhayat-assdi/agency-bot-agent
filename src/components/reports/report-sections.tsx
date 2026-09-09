@@ -183,12 +183,14 @@ export function AnalyzeAdCard({ report }: { report: ReportData }) {
     <Card>
       <CardHeader>
         <CardTitle>Analyze This Ad</CardTitle>
-        <CardDescription>Only the selected ad verified mock analytics context will be sent to AI when Milestone 10 is implemented.</CardDescription>
+        <CardDescription>Only the selected ad verified analytics context is sent to the grounded AI analyst.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Button disabled className="w-full">
-          <Bot className="h-4 w-4" aria-hidden="true" />
-          Analyze {adName} — AI milestone pending
+        <Button asChild className="w-full">
+          <Link href={`/ai-analyst?adId=${encodeURIComponent(report.context.ad?.id ?? "")}&accountId=${encodeURIComponent(report.context.account.id)}&q=${encodeURIComponent(`Analyze this ad: ${adName}`)}`}>
+            <Bot className="h-4 w-4" aria-hidden="true" />
+            Analyze {adName}
+          </Link>
         </Button>
       </CardContent>
     </Card>
