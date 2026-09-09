@@ -124,9 +124,26 @@ Commit: `feat: add realistic mock meta adapter`
 
 ## Milestone 5: Analytics Engine
 
+Status: complete when commit `feat: add deterministic analytics engine` is pushed.
+
 Deterministic metrics, validation, date/timezone handling, currency, comparison, sufficiency, and anomaly engines with unit tests.
 
-Commit: `feat: add analytics engine`
+Implemented scope:
+
+- MetricValue state model preserving actual zero vs null/unavailable/unsupported/partial/API error
+- Deterministic formulas for frequency, CTR, CPC, CPM, CPA, conversion rate, and ROAS
+- Source/provider row normalization into analytics metric sets
+- Aggregation helper with partial-state propagation
+- Absolute and percentage-change comparison engine
+- Trend calculation by reporting date
+- Entity ranking with unavailable metric exclusion
+- Configurable deterministic data sufficiency thresholds
+- Threshold-based anomaly detection for CPA spike, CTR drop, CPM spike, ROAS decline, conversion drop, and spend changes
+- Account-timezone date preset utilities and previous-period calculations
+- Currency formatting and mixed-currency aggregation guard
+- Unit tests for all critical formulas and analytics behaviors
+
+Commit: `feat: add deterministic analytics engine`
 
 ## Milestone 6: Dashboard
 
