@@ -103,9 +103,24 @@ Commit: `chore: audit and harden existing foundation`
 
 ## Milestone 4: Mock Meta API
 
+Status: complete when commit `feat: add realistic mock meta adapter` is pushed.
+
 Mock provider supporting hierarchy, metrics, breakdowns, pagination, missing fields, unsupported breakdowns, API errors, and rate limiting simulation.
 
-Commit: `feat: add mock meta data adapter`
+Implemented scope:
+
+- Read-only `MetaAdsProvider` interface
+- Typed Meta account/campaign/ad-set/ad/creative/insight models
+- Deterministic mock account hierarchy
+- Deterministic daily ad metrics with parent aggregation
+- Pagination helper with opaque cursors
+- Breakdown capability metadata and mock breakdown transforms
+- Missing/unavailable/unsupported metric states
+- Typed mock Meta API errors for unsupported breakdowns and rate limits
+- Unit tests for hierarchy, pagination, metric consistency, breakdown limitations, and error simulation
+- Mock adapter documentation
+
+Commit: `feat: add realistic mock meta adapter`
 
 ## Milestone 5: Analytics Engine
 
