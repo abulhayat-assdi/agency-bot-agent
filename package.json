@@ -16,14 +16,18 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/server/seed/mock-seed.ts",
-    "auth:hash-password": "tsx scripts/hash-password.ts"
+    "auth:hash-password": "tsx scripts/hash-password.ts",
+    "jobs:worker": "tsx scripts/sync-worker.ts",
+    "jobs:schedule-sync": "tsx scripts/schedule-sync.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "latest",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^6.3.4",
     "class-variance-authority": "latest",
     "clsx": "latest",
     "drizzle-orm": "^0.45.2",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.12",
     "lucide-react": "latest",
     "next": "latest",

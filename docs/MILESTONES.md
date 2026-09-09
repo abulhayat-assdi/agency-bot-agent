@@ -227,31 +227,54 @@ Implemented scope:
 
 Commit: `feat: add comparison and trend analytics`
 
-## Milestone 10: OpenAI AI Analyst
+## Milestone 10: Redis and BullMQ Jobs
+
+Status: complete when commit `feat: add redis bullmq sync jobs` is pushed.
+
+Durable background job architecture for scheduled read-only Meta sync work.
+
+Implemented scope:
+
+- BullMQ and Redis dependencies
+- Typed sync job payloads/results for manual, scheduled, incremental, and backfill work
+- Queue factory and queue-events factory with fail-fast Redis configuration
+- Bounded exponential retry policy and job retention settings
+- Read-only sync worker that scans provider account hierarchy, creatives, insights, and optional breakdown rows
+- All-account and single-account sync job processing
+- Recurring sync registration script using `SYNC_INTERVAL_MINUTES`
+- Worker process script with graceful shutdown and structured non-secret logs
+- `/api/jobs/health` readiness endpoint
+- `/sync` operations page documenting queue status, lifecycle, retry policy, and read-only guarantees
+- Tests for worker scans, all-account aggregation, missing-account partial results, non-retryable provider errors, and Redis readiness redaction
+- Job architecture documentation
+
+Commit: `feat: add redis bullmq sync jobs`
+
+## Milestone 11: OpenAI AI Analyst
 
 Grounded AI tool layer, chat, individual ad analysis, anomaly explanation.
 
 Commit: `feat: add grounded openai ai analyst`
 
-## Milestone 11: Email Reporting
+## Milestone 12: Email Reporting
 
 Report schedules, recipients, templates, delivery logs, configuration UI.
 
 Commit: `feat: add scheduled email reporting`
 
-## Milestone 12: Real Meta Integration
+## Milestone 13: Real Meta Integration
 
 Read-only Graph API provider, ingestion, sync engine, live breakdowns, error/retry handling.
 
 Commit: `feat: add read only meta ads integration`
 
-## Milestone 13: Testing + Hardening
+## Milestone 14: Testing + Hardening
 
 Unit, integration, E2E, security, performance, error states, data integrity.
 
 Commit: `test: harden reporting platform`
 
-## Milestone 14: Production Deployment Readiness
+## Milestone 15: Production Deployment Readiness
 
 Docker, health checks, migration/worker architecture, Coolify docs.
 
