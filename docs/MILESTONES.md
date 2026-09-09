@@ -69,7 +69,20 @@ Commit: `feat: add admin authentication`
 
 ## Milestone 3: PostgreSQL
 
+Status: complete when commit `feat: add database schema and data layer` is pushed.
+
 Schema, migrations, indexes, repositories, seed/mock setup.
+
+Implemented scope:
+
+- Drizzle ORM and Drizzle Kit configuration
+- PostgreSQL schema for tenancy, auth persistence, Meta hierarchy, ingestion, metrics, breakdowns, data availability, sync runs/errors, anomalies, AI, email reporting, audit logs, and system settings
+- Initial generated SQL migration
+- Database client factory with safe lazy connection
+- Repository foundations for agencies, clients, ad accounts, and metrics
+- Mock seed script for agency/client/ad-account metadata
+- Password hash helper script for admin bootstrap setup
+- Database documentation synchronized with implementation
 
 Commit: `feat: add database schema and data layer`
 

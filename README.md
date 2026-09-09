@@ -4,7 +4,7 @@ Production-oriented, multi-client, read-only Meta Ads intelligence and analytics
 
 ## Current status
 
-Milestone 0 established the repository baseline, current environment findings, verified Meta API assumptions, and the architecture plan. Milestone 1 initializes the Next.js/TypeScript/Tailwind application foundation. Milestone 2 adds admin authentication, signed session cookies, route protection, logout, and auth tests.
+Milestone 0 established the repository baseline, current environment findings, verified Meta API assumptions, and the architecture plan. Milestone 1 initializes the Next.js/TypeScript/Tailwind application foundation. Milestone 2 adds admin authentication, signed session cookies, route protection, logout, and auth tests. Milestone 3 adds the PostgreSQL schema, Drizzle migrations, repository layer, and mock seed foundation.
 
 ## Repository
 
@@ -40,7 +40,7 @@ Milestone 0 established the repository baseline, current environment findings, v
 
 ## Local environment
 
-Milestone 1 uses npm with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style primitives, ESLint, Prettier, and Vitest. Use `npm run dev`, `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build` for local validation.
+Milestone 1 uses npm with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style primitives, ESLint, Prettier, and Vitest. Use `npm run dev`, `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build` for local validation. Database commands are `npm run db:generate`, `npm run db:migrate`, `npm run db:studio`, and `npm run db:seed`.
 
 ## Security
 
