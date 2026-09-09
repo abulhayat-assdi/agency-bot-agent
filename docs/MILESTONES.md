@@ -147,9 +147,26 @@ Commit: `feat: add deterministic analytics engine`
 
 ## Milestone 6: Dashboard
 
+Status: complete when commit `feat: implement real dashboard analytics` is pushed.
+
 Overview, clients, accounts, KPI cards, charts, filters, and tables.
 
-Commit: `feat: add analytics dashboard`
+Implemented scope:
+
+- Mock-backed dashboard data service using the read-only Meta provider and deterministic analytics engine
+- Agency overview dashboard with date/client/account filters
+- KPI cards for client/account counts, delivery metrics, CTR, conversions, CPC, and ROAS
+- Currency-safe financial summaries grouped by currency
+- Recharts performance trend chart
+- Top campaign ranking table with unavailable ROAS exclusion
+- Deterministic anomaly/alert panel
+- Data freshness and caveat panels
+- Clients list and client overview pages
+- Ad accounts list and ad account overview pages
+- Account metadata visibility for timezone, currency, account ID, sync freshness, and access status
+- Dashboard documentation
+
+Commit: `feat: implement real dashboard analytics`
 
 ## Milestone 7: Deep Reports
 
