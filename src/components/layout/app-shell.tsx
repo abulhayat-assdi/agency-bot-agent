@@ -57,7 +57,7 @@ export function AppShell({ children }: AppShellProps) {
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="success">Mock provider ready</Badge>
-              <Badge variant="secondary">Milestone 7</Badge>
+              <Badge variant="secondary">Milestone 8</Badge>
               <form action={logoutAction}>
                 <Button variant="outline" size="sm" type="submit">
                   Sign out

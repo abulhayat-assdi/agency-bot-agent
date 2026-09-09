@@ -188,7 +188,20 @@ Commit: `feat: add campaign adset and ad reports`
 
 ## Milestone 8: Breakdowns
 
+Status: complete when commit `feat: add meta breakdown analytics` is pushed.
+
 Demographics, geography, platform, placement, device, hourly breakdowns, and compatibility engine.
+
+Implemented scope:
+
+- Metadata-driven breakdown capability registry
+- Capability validation before provider requests
+- Supported mock-backed dimensions for age, gender, age × gender, country, region, publisher platform, platform position, device platform, impression device, and advertiser-time hourly analysis
+- Conditional/disabled state for audience-time hourly analysis and known-invalid combinations
+- Breakdown data service that groups provider rows and runs deterministic analytics on each segment
+- Breakdowns UI with account/date filters, capability matrix, disabled-combination explanations, charts, tables, availability summaries, timezone, currency, and caveats
+- Tests for capability validation, grouped breakdown output, unsupported fallback behavior, and hourly unsupported reach handling
+- Breakdown documentation
 
 Commit: `feat: add meta breakdown analytics`
 
