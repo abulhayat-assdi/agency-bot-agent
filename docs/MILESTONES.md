@@ -294,7 +294,22 @@ Commit: `feat: add scheduled email reporting`
 
 ## Milestone 13: Real Meta Integration
 
+Status: complete when commit `feat: add read only meta ads integration` is pushed.
+
 Read-only Graph API provider, ingestion, sync engine, live breakdowns, error/retry handling.
+
+Implemented scope:
+
+- Rechecked current official Meta docs before implementation: Graph API latest `v26.0`, Ads Insights requirements, `ads_read`, authorization/access-tier requirements, breakdown limits, Insights pagination, timeout, and rate-limit behavior
+- Added live `GraphApiMetaAdsProvider` implementing the existing read-only provider interface
+- Added safe Graph API HTTP client with explicit GET-only requests, `appsecret_proof` support, cursor pagination, error normalization, and safe non-secret logs
+- Added live account, campaign, ad set, ad, creative, insights, and breakdown read mappings
+- Added deterministic normalization of Meta numeric strings, action metrics, currency, timezone, attribution context, and availability states
+- Added provider factory and `/api/meta/health` readiness endpoint
+- Wired BullMQ sync worker factory to use the live provider when `META_PROVIDER=graph-api`
+- Updated settings UI with Meta provider readiness and read-only checklist
+- Added Graph API provider tests for account reads, insight normalization, breakdown values, permission errors, and token/appsecret behavior
+- Updated Meta API documentation with implemented scope and remaining persistence/async report-run follow-up
 
 Commit: `feat: add read only meta ads integration`
 

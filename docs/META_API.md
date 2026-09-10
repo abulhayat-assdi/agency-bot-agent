@@ -1,6 +1,6 @@
 # Meta Marketing API Assumptions and Integration Plan
 
-Research date: 2026-09-09.
+Research date: 2026-09-10. Official documentation was rechecked before adding the live read-only provider.
 
 Primary official sources reviewed:
 
@@ -96,13 +96,55 @@ Current important limitations from official docs:
 - Some breakdowns, including `impression_device`, audience-time hourly, and `frequency_value`, may require account feature enablement or async report jobs.
 - Reach/frequency for breakdown queries older than 13 months may be omitted or throttled; the platform must display omission explicitly.
 
-## Live integration plan
+## Implemented live read-only provider
 
-1. Store ad account registry with account ID, name, currency, timezone, provider, access status, sync settings, and OAuth-ready metadata.
-2. Build `MetaAdsProvider` interface and mock provider first.
-3. Implement a Graph API provider with safe HTTP client, timeout, pagination, retry, rate-limit header parsing, error classification, and request logging without secrets.
-4. Sync hierarchy first: accounts → campaigns → ad sets → ads → creatives.
-5. Sync daily analytics-ready metrics with provenance per date, entity level, attribution context, and action metric context.
-6. Sync breakdown metrics in separate jobs using capability metadata and known-compatible field sets.
-7. Use async report jobs for large backfills, high-cardinality breakdowns, and timeout recovery.
-8. Validate normalized rows before persisting; missing values remain null/unavailable.
+Milestone 13 adds `GraphApiMetaAdsProvider`, which implements the same read-only `MetaAdsProvider` interface as the deterministic mock provider.
+
+Implemented reads:
+
+- `GET /me/adaccounts` with explicit account metadata fields.
+- `GET /act_<AD_ACCOUNT_ID>/campaigns`.
+- `GET /act_<AD_ACCOUNT_ID>/adsets` with optional campaign filtering.
+- `GET /act_<AD_ACCOUNT_ID>/ads` with optional ad set filtering.
+- `GET /<AD_ID>` and `GET /<CREATIVE_ID>` for selected creative metadata.
+- `GET /act_<AD_ACCOUNT_ID>/insights` for account/campaign/adset/ad reporting levels.
+- `GET /act_<AD_ACCOUNT_ID>/insights` with `breakdowns` for supported breakdown requests.
+
+Configuration:
+
+- `META_PROVIDER=mock` keeps all dashboards on deterministic mock data.
+- `META_PROVIDER=graph-api` enables the live provider for configured sync workers and provider factory usage.
+- `META_SYSTEM_USER_ACCESS_TOKEN` is required for graph-api mode and must be configured outside Git.
+- `META_APP_SECRET` is optional but, when present, the HTTP client adds `appsecret_proof` to Graph requests.
+- `META_GRAPH_API_VERSION` defaults to `v26.0`.
+
+Accuracy behavior:
+
+- Numeric Meta strings are parsed deterministically.
+- Missing numeric fields become `null_from_source`, not zero.
+- Empty numeric provider values become null/unavailable, not guessed values.
+- Conversion counts and conversion value are extracted only from allowlisted action types in `actions` and `action_values`.
+- Currency and timezone come from ad account metadata and are carried onto insight rows.
+- Attribution context is preserved as provider metadata for downstream reporting caveats.
+
+Error/rate-limit behavior:
+
+- Graph requests use bounded request timeouts and normalize timeout failures into retryable `MetaApiError` values.
+- Graph errors are normalized into `MetaApiError` with safe details only.
+- Permission/auth errors are non-retryable.
+- Rate-limit/transient errors are retryable so BullMQ can apply bounded exponential retries.
+- `x-fb-ads-insights-throttle` and `x-ad-account-usage` presence is logged without exposing tokens or raw headers.
+
+Safety behavior:
+
+- No campaign/ad set/ad/creative/budget/targeting write endpoint exists.
+- The HTTP client currently performs only GET requests.
+- The app does not request `ads_management`; Phase 1 uses `ads_read` for reporting.
+
+## Remaining live integration follow-up
+
+1. Persist live sync runs, raw ingestion payloads, normalized hierarchy, normalized metrics, breakdown rows, and validation errors into PostgreSQL.
+2. Move dashboard/report data services from mock provider reads to persisted verified app data.
+3. Add async report-run support for high-volume backfills and high-cardinality breakdowns.
+4. Add production request pacing based on parsed throttle header values.
+5. Add operational dashboards for sync run state and failed-account remediation.

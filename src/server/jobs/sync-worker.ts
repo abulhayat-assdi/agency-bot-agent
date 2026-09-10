@@ -3,7 +3,7 @@ import { Worker, type Job } from "bullmq";
 import { resolveDatePreset } from "@/lib/dates/reporting";
 import { getAppConfig } from "@/server/config/env";
 import { MetaApiError } from "@/server/meta/errors";
-import { createMockMetaAdsProvider } from "@/server/meta";
+import { createGraphApiMetaAdsProvider, createMockMetaAdsProvider } from "@/server/meta";
 import type { MetaAdsProvider, MetaBreakdownRow, MetaDateRange, MetaEntityLevel, MetaInsightRow, MetaPage, MetaPaging } from "@/server/meta/types";
 import { logger } from "@/server/observability/logger";
 import { createRedisConnection } from "@/server/jobs/redis";
@@ -31,7 +31,15 @@ export function createMetaAdsProviderForJobs(env: Record<string, string | undefi
     return createMockMetaAdsProvider();
   }
 
-  throw new Error("Graph API provider is not enabled yet; live read-only Meta sync is scheduled for the live Meta integration milestone");
+  if (!config.META_SYSTEM_USER_ACCESS_TOKEN) {
+    throw new Error("META_SYSTEM_USER_ACCESS_TOKEN is required when META_PROVIDER=graph-api");
+  }
+
+  return createGraphApiMetaAdsProvider({
+    accessToken: config.META_SYSTEM_USER_ACCESS_TOKEN,
+    appSecret: config.META_APP_SECRET,
+    graphApiVersion: config.META_GRAPH_API_VERSION
+  });
 }
 
 async function fetchAllPages<T>(fetchPage: (paging?: MetaPaging) => Promise<MetaPage<T>>): Promise<T[]> {
