@@ -18,7 +18,11 @@
     "db:seed": "tsx src/server/seed/mock-seed.ts",
     "auth:hash-password": "tsx scripts/hash-password.ts",
     "jobs:worker": "tsx scripts/sync-worker.ts",
-    "jobs:schedule-sync": "tsx scripts/schedule-sync.ts"
+    "jobs:schedule-sync": "tsx scripts/schedule-sync.ts",
+    "start:web": "next start --hostname 0.0.0.0",
+    "start:worker": "tsx scripts/sync-worker.ts",
+    "deploy:migrate": "drizzle-kit migrate",
+    "deploy:check": "tsx scripts/verify-deployment-readiness.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "latest",
@@ -36,7 +40,8 @@
     "react-dom": "latest",
     "recharts": "latest",
     "tailwind-merge": "latest",
-    "zod": "latest"
+    "zod": "latest",
+    "tsx": "^4.23.13"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "latest",
@@ -46,16 +51,15 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "autoprefixer": "latest",
-    "drizzle-kit": "^0.31.10",
     "eslint": "latest",
     "eslint-config-next": "latest",
     "jsdom": "latest",
     "postcss": "latest",
     "prettier": "latest",
     "tailwindcss": "^3.4.17",
-    "tsx": "^4.23.13",
     "typescript": "latest",
-    "vitest": "latest"
+    "vitest": "latest",
+    "drizzle-kit": "^0.31.10"
   },
   "engines": {
     "node": ">=22.0.0"

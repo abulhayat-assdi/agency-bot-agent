@@ -1,0 +1,92 @@
+services:
+  web:
+    build:
+      context: .
+    command: npm run start:web
+    ports:
+      - "3000:3000"
+    environment:
+      APP_ENV: production
+      APP_URL: http://localhost:3000
+      APP_NAME: AI Meta Ads Intelligence Platform
+      SESSION_SECRET: replace-with-a-long-random-secret-at-runtime
+      ADMIN_BOOTSTRAP_EMAIL: admin@example.com
+      ADMIN_BOOTSTRAP_PASSWORD_HASH: replace-with-bcrypt-password-hash-at-runtime
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/meta_ads_intelligence
+      REDIS_URL: redis://redis:6379
+      META_PROVIDER: mock
+      META_GRAPH_API_VERSION: v26.0
+      EMAIL_PROVIDER: mock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+    command: npm run start:worker
+    environment:
+      APP_ENV: production
+      APP_URL: http://localhost:3000
+      APP_NAME: AI Meta Ads Intelligence Platform
+      SESSION_SECRET: replace-with-a-long-random-secret-at-runtime
+      ADMIN_BOOTSTRAP_EMAIL: admin@example.com
+      ADMIN_BOOTSTRAP_PASSWORD_HASH: replace-with-bcrypt-password-hash-at-runtime
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/meta_ads_intelligence
+      REDIS_URL: redis://redis:6379
+      META_PROVIDER: mock
+      META_GRAPH_API_VERSION: v26.0
+      EMAIL_PROVIDER: mock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      target: builder
+    command: npm run deploy:migrate
+    profiles: ["tools"]
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/meta_ads_intelligence
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: meta_ads_intelligence
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d meta_ads_intelligence"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:

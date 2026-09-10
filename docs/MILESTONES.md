@@ -336,6 +336,19 @@ Commit: `test: harden reporting platform`
 
 ## Milestone 15: Production Deployment Readiness
 
+Status: complete when commit `chore: prepare coolify production deployment` is pushed.
+
 Docker, health checks, migration/worker architecture, Coolify docs.
+
+Implemented scope:
+
+- Multi-stage `Dockerfile` using Node 22, production dependencies, non-root runtime user, port 3000, and `/api/health` healthcheck
+- `.dockerignore` excluding Git, env files, dependencies, caches, and build artifacts
+- `docker-compose.yml` for web, worker, PostgreSQL, Redis, and migration profile
+- Production scripts for web startup, worker startup, deployment migration, and deployment readiness checks
+- Next.js standalone output configuration for container builds
+- Public directory placeholder so Docker copies static assets consistently
+- Expanded Docker/Coolify deployment documentation with environment, security, health, migration, worker, and rollback guidance
+- Deployment readiness verification script
 
 Commit: `chore: prepare coolify production deployment`
