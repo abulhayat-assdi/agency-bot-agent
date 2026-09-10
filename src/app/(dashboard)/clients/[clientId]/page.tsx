@@ -20,7 +20,7 @@ export default async function ClientOverviewPage({ params }: { params: Promise<{
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Client Overview</p>
+        <p className="section-eyebrow">Client Overview</p>
         <h2 className="mt-2 text-3xl font-bold tracking-tight">{summary.client.name}</h2>
         <p className="mt-2 text-sm text-muted-foreground">Consolidated account performance for the selected client. Currency-specific financial summaries remain separated.</p>
       </div>

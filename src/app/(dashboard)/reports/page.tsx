@@ -7,21 +7,18 @@ export default function Page() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Saved and generated reports</p>
-          <h2 className="mt-2 text-3xl font-bold tracking-tight">Reports</h2>
+          <p className="section-eyebrow">Reports</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight">Saved reports</h2>
         </div>
-        <Badge variant="secondary">Foundation shell</Badge>
+        <Badge variant="secondary">Export queue</Badge>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Accuracy-first implementation path</CardTitle>
-          <CardDescription>Report pages will expose exportable tables, freshness indicators, and provenance for each metric.</CardDescription>
+          <CardTitle>Report library</CardTitle>
+          <CardDescription>Exports, freshness, and metric provenance.</CardDescription>
         </CardHeader>
         <CardContent>
-          <EmptyState
-            title="Verified data not connected yet"
-            description="This route is intentionally present as navigation and layout foundation only. Mock data ingestion, deterministic analytics, and persistence will be added in upcoming milestones before metrics are displayed."
-          />
+          <EmptyState title="No saved exports yet" description="Create scheduled reports from Email Reports or export account tables after live data is connected." />
         </CardContent>
       </Card>
     </div>

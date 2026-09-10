@@ -130,12 +130,12 @@ export function DataHealthCard({ report }: { report: ReportData }) {
       <CardContent className="space-y-3">
         {report.caveats.map((caveat) => (
           <div key={caveat} className="flex gap-2 text-sm text-muted-foreground">
-            <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" aria-hidden="true" />
+            <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
             {caveat}
           </div>
         ))}
         {report.sufficiency.reasons.map((reason) => (
-          <div key={reason} className="flex gap-2 text-sm text-amber-100/80">
+          <div key={reason} className="flex gap-2 text-sm text-amber-700 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
             {reason}
           </div>
@@ -156,16 +156,16 @@ export function AnomalyCard({ report }: { report: ReportData }) {
         {report.anomalies.length ? (
           report.anomalies.map((anomaly) => (
             <div key={anomaly.type} className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
+              <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-100">
                 <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                 {anomaly.type.replaceAll("_", " ")} · {anomaly.severity}
               </div>
-              <p className="mt-1 text-xs text-amber-100/75">{anomaly.explanation}</p>
+              <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80">{anomaly.explanation}</p>
             </div>
           ))
         ) : (
-          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100/80">
-            <div className="flex items-center gap-2 font-semibold text-emerald-100">
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-700 dark:text-emerald-300">
+            <div className="flex items-center gap-2 font-semibold text-emerald-800 dark:text-emerald-100">
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               No threshold anomalies detected
             </div>

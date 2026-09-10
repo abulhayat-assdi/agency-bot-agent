@@ -35,7 +35,7 @@ export default async function IndividualAdReportPage({ params, searchParams }: P
       <ReportBreadcrumbs context={report.context} />
       <section className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Individual Ad Report</p>
+          <p className="section-eyebrow">Individual Ad Report</p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight">{report.context.ad.name}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {report.context.ad.id} · Campaign {report.context.campaign.name} · Ad set {report.context.adSet.name} · {formatDateRange(report.range)}
@@ -54,10 +54,10 @@ export default async function IndividualAdReportPage({ params, searchParams }: P
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 text-sm md:grid-cols-2">
-              <div className="rounded-2xl bg-white/[0.03] p-4"><p className="text-muted-foreground">Creative ID</p><p className="mt-1 font-semibold">{creative?.id ?? "Unavailable"}</p></div>
-              <div className="rounded-2xl bg-white/[0.03] p-4"><p className="text-muted-foreground">Creative type</p><p className="mt-1 font-semibold">{creative?.objectType ?? "Unavailable"}</p></div>
-              <div className="rounded-2xl bg-white/[0.03] p-4"><p className="text-muted-foreground">Optimization goal</p><p className="mt-1 font-semibold">{report.context.adSet.optimizationGoal}</p></div>
-              <div className="rounded-2xl bg-white/[0.03] p-4"><p className="text-muted-foreground">Attribution/reporting context</p><p className="mt-1 font-semibold">Mixed report time · mock attribution windows</p></div>
+              <div className="rounded-2xl bg-card/70 dark:bg-white/[0.03] p-4"><p className="text-muted-foreground">Creative ID</p><p className="mt-1 font-semibold">{creative?.id ?? "Unavailable"}</p></div>
+              <div className="rounded-2xl bg-card/70 dark:bg-white/[0.03] p-4"><p className="text-muted-foreground">Creative type</p><p className="mt-1 font-semibold">{creative?.objectType ?? "Unavailable"}</p></div>
+              <div className="rounded-2xl bg-card/70 dark:bg-white/[0.03] p-4"><p className="text-muted-foreground">Optimization goal</p><p className="mt-1 font-semibold">{report.context.adSet.optimizationGoal}</p></div>
+              <div className="rounded-2xl bg-card/70 dark:bg-white/[0.03] p-4"><p className="text-muted-foreground">Attribution/reporting context</p><p className="mt-1 font-semibold">Mixed report time · mock attribution windows</p></div>
             </div>
           </CardContent>
         </Card>

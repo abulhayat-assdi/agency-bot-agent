@@ -286,10 +286,10 @@ export async function getEmailReportsDashboardData(env: Record<string, string | 
     deliveryLogs: mockDeliveryLogs,
     previews,
     caveats: [
-      "Milestone email schedules are mock-backed until durable database-backed schedule editing is enabled.",
-      "Delivery uses the mock provider by default. Resend is used only when EMAIL_PROVIDER=resend with RESEND_API_KEY and EMAIL_FROM configured outside Git.",
-      "Reports preserve metric availability states and never convert unavailable metrics into zero.",
-      "Schedule times are displayed in each report/account timezone."
+      "Preview schedules use the validated configuration model until durable DB editing is enabled.",
+      "Resend secrets must be set in environment variables, never committed.",
+      "Unavailable metrics stay unavailable, never zero.",
+      "Schedule times use the report/account timezone."
     ]
   };
 }

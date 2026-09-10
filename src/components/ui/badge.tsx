@@ -6,10 +6,10 @@ import { cn } from "@/lib/utils";
 const badgeVariants = cva("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", {
   variants: {
     variant: {
-      default: "border-transparent bg-primary/15 text-sky-200",
-      secondary: "border-white/10 bg-white/10 text-muted-foreground",
-      warning: "border-amber-400/30 bg-amber-400/10 text-amber-200",
-      success: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+      default: "border-transparent bg-primary/15 text-primary",
+      secondary: "border-border bg-muted/70 text-muted-foreground dark:border-white/10 dark:bg-white/10",
+      warning: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200",
+      success: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"
     }
   },
   defaultVariants: {

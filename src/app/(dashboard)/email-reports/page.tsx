@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { CalendarClock, CheckCircle2, Mail, Send, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CalendarClock, CheckCircle2, Mail, Send, TriangleAlert } from "lucide-react";
 
+import { EmailConfigurator } from "@/components/email/email-configurator";
 import { formatMetric } from "@/components/dashboard/metric-format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricsTable } from "@/components/tables/metrics-table";
-import { getEmailReportsDashboardData, nextDeliveryDescription } from "@/server/email";
+import { getDashboardData } from "@/server/dashboard/mock-dashboard-data";
+import { getEmailProviderReadiness, getEmailReportsDashboardData, nextDeliveryDescription } from "@/server/email";
 
 export const dynamic = "force-dynamic";
 
@@ -15,56 +17,57 @@ function label(value: string) {
 }
 
 export default async function EmailReportsPage() {
-  const data = await getEmailReportsDashboardData();
+  const [data, dashboardData] = await Promise.all([getEmailReportsDashboardData(), getDashboardData({ preset: "last_7_days" })]);
+  const readiness = getEmailProviderReadiness();
 
   return (
     <div className="space-y-6">
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Scheduled reporting</p>
-          <h2 className="mt-2 text-3xl font-bold tracking-tight">Email Reports</h2>
-          <p className="mt-2 max-w-4xl text-sm text-muted-foreground">
-            Configure report schedules, recipients, delivery scope, and audit delivery history through a read-only analytics email layer.
-          </p>
+          <p className="section-eyebrow">Email Reports</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight">Schedule and routing</h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Configure sender, recipients, account scope, and report cadence.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge variant={data.providerConfigured ? "success" : "warning"}>{data.providerConfigured ? "Provider configured" : "Provider needs config"}</Badge>
+          <Badge variant={data.providerConfigured ? "success" : "warning"}>{data.providerConfigured ? "Ready" : "Needs config"}</Badge>
           <Badge variant="secondary">{data.provider}</Badge>
         </div>
       </section>
 
+      <EmailConfigurator provider={data.provider} providerConfigured={data.providerConfigured} fromConfigured={readiness.fromConfigured} reports={data.reports} accounts={dashboardData.accounts} />
+
       <section className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="space-y-1">
-            <CardDescription>Configured reports</CardDescription>
-            <CardTitle className="flex items-center gap-2 text-2xl"><Mail className="h-5 w-5 text-sky-300" aria-hidden="true" />{data.reports.length}</CardTitle>
+            <CardDescription>Reports</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-2xl"><Mail className="h-5 w-5 text-primary" aria-hidden="true" />{data.reports.length}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Mock-backed schedules ready for DB persistence in a later hardening milestone.</CardContent>
+          <CardContent className="text-sm text-muted-foreground">Configurable report templates.</CardContent>
         </Card>
         <Card>
           <CardHeader className="space-y-1">
-            <CardDescription>Enabled schedules</CardDescription>
-            <CardTitle className="flex items-center gap-2 text-2xl"><CalendarClock className="h-5 w-5 text-emerald-300" aria-hidden="true" />{data.reports.filter((report) => report.enabled).length}</CardTitle>
+            <CardDescription>Active</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-2xl"><CalendarClock className="h-5 w-5 text-emerald-500" aria-hidden="true" />{data.reports.filter((report) => report.enabled).length}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Schedule times use each report/account timezone.</CardContent>
+          <CardContent className="text-sm text-muted-foreground">Timezone-aware schedules.</CardContent>
         </Card>
         <Card>
           <CardHeader className="space-y-1">
-            <CardDescription>Recent deliveries</CardDescription>
-            <CardTitle className="flex items-center gap-2 text-2xl"><Send className="h-5 w-5 text-purple-300" aria-hidden="true" />{data.deliveryLogs.length}</CardTitle>
+            <CardDescription>Deliveries</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-2xl"><Send className="h-5 w-5 text-violet-500" aria-hidden="true" />{data.deliveryLogs.length}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Delivery history keeps provider IDs and safe failure messages only.</CardContent>
+          <CardContent className="text-sm text-muted-foreground">Safe provider logs.</CardContent>
         </Card>
       </section>
 
       <Card>
         <CardHeader>
-          <CardTitle>Report schedules</CardTitle>
-          <CardDescription>Recipient and schedule configuration model for account, alert, and ad-level reports.</CardDescription>
+          <CardTitle>Routing matrix</CardTitle>
+          <CardDescription>Which report goes to which email list.</CardDescription>
         </CardHeader>
         <CardContent>
           <MetricsTable
-            columns={["Name", "Type", "Status", "Recipients", "Schedule", "Dashboard", "Test send"]}
+            columns={["Report", "Type", "Status", "Recipients", "Schedule", "Dashboard", "Test send"]}
             rows={data.reports.map((report) => [
               report.name,
               label(report.reportType),
@@ -72,7 +75,7 @@ export default async function EmailReportsPage() {
               report.recipients.filter((recipient) => recipient.status === "active").map((recipient) => recipient.email).join(", "),
               nextDeliveryDescription(report),
               <Button key="open" asChild size="sm" variant="outline"><Link href={report.dashboardPath}>Open</Link></Button>,
-              <code key="api" className="rounded-lg bg-slate-950/80 px-2 py-1 text-xs text-sky-100">POST /api/email-reports/send</code>
+              <code key="api" className="rounded-lg bg-muted px-2 py-1 text-xs text-foreground">POST /api/email-reports/send</code>
             ])}
           />
         </CardContent>
@@ -81,36 +84,31 @@ export default async function EmailReportsPage() {
       <section className="grid gap-6 xl:grid-cols-[1fr_0.95fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Email content preview</CardTitle>
-            <CardDescription>Rendered content is based on deterministic app analytics and preserves metric states.</CardDescription>
+            <CardTitle>Email preview</CardTitle>
+            <CardDescription>Key metrics only, with metric states preserved.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {data.previews.map((preview) => (
-              <div key={preview.reportId} className="rounded-3xl border border-white/10 bg-slate-950/50 p-4">
+            {data.previews.slice(0, 2).map((preview) => (
+              <div key={preview.reportId} className="metric-surface rounded-3xl p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-semibold text-slate-100">{preview.subject}</h3>
+                    <h3 className="font-semibold">{preview.subject}</h3>
                     <p className="mt-1 text-xs text-muted-foreground">{preview.dashboardPath}</p>
                   </div>
                   <Badge variant="secondary">Preview</Badge>
                 </div>
                 <dl className="mt-4 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                    <dt className="text-muted-foreground">Spend</dt>
-                    <dd className="mt-1 font-semibold">{formatMetric(preview.metrics.spend, { kind: "currency", currency: preview.currency })}</dd>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                    <dt className="text-muted-foreground">CTR</dt>
-                    <dd className="mt-1 font-semibold">{formatMetric(preview.metrics.ctr, { kind: "percent" })}</dd>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                    <dt className="text-muted-foreground">Conversions</dt>
-                    <dd className="mt-1 font-semibold">{formatMetric(preview.metrics.conversions)}</dd>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                    <dt className="text-muted-foreground">ROAS</dt>
-                    <dd className="mt-1 font-semibold">{formatMetric(preview.metrics.roas, { kind: "ratio" })}</dd>
-                  </div>
+                  {[
+                    ["Spend", formatMetric(preview.metrics.spend, { kind: "currency", currency: preview.currency })],
+                    ["CTR", formatMetric(preview.metrics.ctr, { kind: "percent" })],
+                    ["Conv.", formatMetric(preview.metrics.conversions)],
+                    ["ROAS", formatMetric(preview.metrics.roas, { kind: "ratio" })]
+                  ].map(([name, value]) => (
+                    <div key={name} className="rounded-2xl border border-border/80 bg-card/70 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                      <dt className="text-muted-foreground">{name}</dt>
+                      <dd className="mt-1 font-semibold">{value}</dd>
+                    </div>
+                  ))}
                 </dl>
               </div>
             ))}
@@ -120,43 +118,26 @@ export default async function EmailReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Delivery history</CardTitle>
-            <CardDescription>Safe delivery log view with no provider credentials or raw API payloads.</CardDescription>
+            <CardDescription>No secrets or raw provider payloads.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {data.deliveryLogs.map((log) => (
-              <div key={log.id} className="rounded-3xl border border-white/10 bg-slate-950/50 p-4">
+              <div key={log.id} className="metric-surface rounded-3xl p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-medium">{log.renderedSubject}</div>
                   <Badge variant={log.status === "sent" ? "success" : log.status === "failed" ? "warning" : "secondary"}>{log.status}</Badge>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {log.recipientCount} recipient(s) · provider {log.provider} · {log.sentAt ?? log.createdAt}
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">{log.recipientCount} recipients · {log.provider} · {log.sentAt ?? log.createdAt}</p>
                 {log.safeError ? (
-                  <p className="mt-2 flex gap-2 text-xs text-amber-100/80"><TriangleAlert className="h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />{log.safeError}</p>
+                  <p className="mt-2 flex gap-2 text-xs text-amber-700 dark:text-amber-300"><TriangleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />{log.safeError}</p>
                 ) : (
-                  <p className="mt-2 flex gap-2 text-xs text-emerald-100/80"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />Delivery accepted by provider.</p>
+                  <p className="mt-2 flex gap-2 text-xs text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />Provider accepted.</p>
                 )}
               </div>
             ))}
           </CardContent>
         </Card>
       </section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Safety and accuracy caveats</CardTitle>
-          <CardDescription>Email reporting follows the same data accuracy rules as dashboards and AI.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
-          {data.caveats.map((caveat) => (
-            <div key={caveat} className="flex gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-3 text-sm text-emerald-50/85">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />
-              {caveat}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
     </div>
   );
 }

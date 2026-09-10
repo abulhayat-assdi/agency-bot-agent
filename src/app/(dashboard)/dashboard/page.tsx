@@ -37,10 +37,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Dashboard Overview</p>
-          <h2 className="mt-2 text-3xl font-bold tracking-tight">Agency performance intelligence</h2>
+          <p className="section-eyebrow">Dashboard</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight">Performance overview</h2>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Date range: {formatDateRange(data.range)} · Comparison: {formatDateRange(data.previousRange)} · Generated from deterministic mock Meta data.
+            {formatDateRange(data.range)} · vs {formatDateRange(data.previousRange)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -52,22 +52,22 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       <FilterBar preset={filters.preset} clientId={filters.clientId} accountId={filters.accountId} clients={data.clients} accounts={data.accounts} />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Total clients" value={String(data.totals.clients)} helper="Agency-level client registry" accent="purple" />
-        <KpiCard label="Connected accounts" value={`${data.totals.connectedAccounts}`} helper={`${data.totals.selectedAccounts} selected for this view`} accent="green" />
-        <KpiCard label="Impressions" value={formatMetric(deliveryMetrics.impressions)} metric={deliveryMetrics.impressions} helper="Delivery volume across selected scope" />
-        <KpiCard label="Reach" value={formatMetric(deliveryMetrics.reach)} metric={deliveryMetrics.reach} helper="Estimated Meta reach where available" />
-        <KpiCard label="Clicks" value={formatMetric(deliveryMetrics.clicks)} metric={deliveryMetrics.clicks} helper="All clicks from provider rows" />
+        <KpiCard label="Total clients" value={String(data.totals.clients)} helper="Client registry" accent="purple" />
+        <KpiCard label="Connected accounts" value={`${data.totals.connectedAccounts}`} helper={`${data.totals.selectedAccounts} selected`} accent="green" />
+        <KpiCard label="Impressions" value={formatMetric(deliveryMetrics.impressions)} metric={deliveryMetrics.impressions} helper="Selected scope" />
+        <KpiCard label="Reach" value={formatMetric(deliveryMetrics.reach)} metric={deliveryMetrics.reach} helper="Meta estimate" />
+        <KpiCard label="Clicks" value={formatMetric(deliveryMetrics.clicks)} metric={deliveryMetrics.clicks} helper="Provider clicks" />
         <KpiCard label="CTR" value={formatMetric(deliveryMetrics.ctr, { kind: "percent" })} metric={deliveryMetrics.ctr} helper="clicks / impressions × 100" />
-        <KpiCard label="Conversions" value={formatMetric(deliveryMetrics.conversions)} metric={deliveryMetrics.conversions} helper="Provider conversion action total" accent="green" />
-        <KpiCard label={`CPC (${primaryCurrencySummary?.currency ?? "n/a"})`} value={formatMetric(primaryMetrics?.cpc, { kind: "currency", currency: primaryCurrencySummary?.currency })} metric={primaryMetrics?.cpc} helper="spend / clicks for primary currency group" accent="amber" />
-        <KpiCard label={`ROAS (${primaryCurrencySummary?.currency ?? "n/a"})`} value={formatMetric(primaryMetrics?.roas, { kind: "ratio" })} metric={primaryMetrics?.roas} helper="conversion value / spend for primary currency group" accent="green" />
+        <KpiCard label="Conversions" value={formatMetric(deliveryMetrics.conversions)} metric={deliveryMetrics.conversions} helper="Conversion actions" accent="green" />
+        <KpiCard label={`CPC (${primaryCurrencySummary?.currency ?? "n/a"})`} value={formatMetric(primaryMetrics?.cpc, { kind: "currency", currency: primaryCurrencySummary?.currency })} metric={primaryMetrics?.cpc} helper="Spend ÷ clicks" accent="amber" />
+        <KpiCard label={`ROAS (${primaryCurrencySummary?.currency ?? "n/a"})`} value={formatMetric(primaryMetrics?.roas, { kind: "ratio" })} metric={primaryMetrics?.roas} helper="Value ÷ spend" accent="green" />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Card>
           <CardHeader>
             <CardTitle>Performance trend</CardTitle>
-            <CardDescription>Daily delivery, clicks, and conversions for the selected account-local date range.</CardDescription>
+            <CardDescription>Daily trend for selected scope.</CardDescription>
           </CardHeader>
           <CardContent>
             <PerformanceTrendChart data={data.trend} />
@@ -76,14 +76,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Currency-safe financial summary</CardTitle>
-            <CardDescription>Financial KPIs are grouped by currency to avoid silent mixing.</CardDescription>
+            <CardTitle>Financial summary</CardTitle>
+            <CardDescription>Grouped by currency.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {data.currencySummaries.map((summary) => {
               const sufficiency = evaluateDataSufficiency(summary.metrics);
               return (
-                <div key={summary.currency} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div key={summary.currency} className="rounded-2xl metric-surface p-4">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="font-semibold">{summary.currency}</h3>
                     <Badge variant={sufficiency.state === "reliable_enough_for_comparison" ? "success" : "warning"}>{sufficiency.state.replaceAll("_", " ")}</Badge>
@@ -121,7 +121,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Top campaigns by ROAS</CardTitle>
-            <CardDescription>Ranking excludes campaigns where ROAS is unavailable.</CardDescription>
+            <CardDescription>Unavailable ROAS excluded.</CardDescription>
           </CardHeader>
           <CardContent>
             <MetricsTable
@@ -143,28 +143,28 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <Card>
           <CardHeader>
             <CardTitle>Deterministic alerts</CardTitle>
-            <CardDescription>Anomalies are generated by threshold rules, not AI guesses.</CardDescription>
+            <CardDescription>Rule-based only.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {data.currencySummaries.flatMap((summary) => summary.anomalies).length ? (
               data.currencySummaries.flatMap((summary) =>
                 summary.anomalies.map((anomaly) => (
                   <div key={`${summary.currency}-${anomaly.type}`} className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-100">
                       <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                       {anomaly.type.replaceAll("_", " ")} · {summary.currency}
                     </div>
-                    <p className="mt-1 text-xs text-amber-100/75">{anomaly.explanation}</p>
+                    <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80">{anomaly.explanation}</p>
                   </div>
                 ))
               )
             ) : (
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100/80">
-                <div className="flex items-center gap-2 font-semibold text-emerald-100">
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-700 dark:text-emerald-300">
+                <div className="flex items-center gap-2 font-semibold text-emerald-800 dark:text-emerald-100">
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                   No threshold anomalies detected
                 </div>
-                <p className="mt-1 text-xs">Based on current vs previous equivalent period.</p>
+                <p className="mt-1 text-xs">Current vs previous period.</p>
               </div>
             )}
           </CardContent>
@@ -178,11 +178,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             <CardDescription>Primary currency: {primaryCurrencySummary?.currency ?? "Unavailable"}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <div className="flex items-center justify-between rounded-2xl bg-white/[0.03] p-3">
+            <div className="flex items-center justify-between rounded-2xl bg-card/70 dark:bg-white/[0.03] p-3">
               <span className="text-muted-foreground">Spend change</span>
               <span className="font-semibold">{spendComparison ? formatMetric(spendComparison.percentageChange, { kind: "percent" }) : "Unavailable"}</span>
             </div>
-            <div className="flex items-center justify-between rounded-2xl bg-white/[0.03] p-3">
+            <div className="flex items-center justify-between rounded-2xl bg-card/70 dark:bg-white/[0.03] p-3">
               <span className="text-muted-foreground">ROAS change</span>
               <span className="font-semibold">{roasComparison ? formatMetric(roasComparison.percentageChange, { kind: "percent" }) : "Unavailable"}</span>
             </div>
@@ -196,7 +196,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-2">
             {data.accountSummaries.map((summary) => (
-              <div key={summary.account.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/[0.03] p-3 text-sm">
+              <div key={summary.account.id} className="flex items-center justify-between gap-3 rounded-2xl bg-card/70 dark:bg-white/[0.03] p-3 text-sm">
                 <div>
                   <p className="font-medium">{summary.account.name}</p>
                   <p className="text-xs text-muted-foreground">{summary.account.timezone} · {summary.account.currency}</p>
@@ -210,17 +210,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         <Card>
           <CardHeader>
             <CardTitle>Data caveats</CardTitle>
-            <CardDescription>Accuracy notes for this milestone.</CardDescription>
+            <CardDescription>Short accuracy notes.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {data.caveats.map((caveat) => (
               <div key={caveat} className="flex gap-2 text-sm text-muted-foreground">
-                <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" aria-hidden="true" />
+                <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 {caveat}
               </div>
             ))}
             <div className="flex gap-2 text-sm text-muted-foreground">
-              <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" aria-hidden="true" />
+              <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               Generated at {data.generatedAt}
             </div>
           </CardContent>

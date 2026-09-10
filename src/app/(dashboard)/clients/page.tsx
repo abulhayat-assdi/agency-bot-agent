@@ -18,23 +18,23 @@ export default async function ClientsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Clients</p>
-          <h2 className="mt-2 text-3xl font-bold tracking-tight">Multi-client performance portfolio</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Last 7 days using deterministic mock Meta account data. Financial values remain account-currency scoped.</p>
+          <p className="section-eyebrow">Clients</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight">Client portfolio</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Last 7 days · account-currency scoped.</p>
         </div>
         <Badge variant="success">{clients.length} active clients</Badge>
       </div>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <KpiCard label="Clients" value={String(data.totals.clients)} helper="Agency-managed client records" accent="purple" />
-        <KpiCard label="Connected accounts" value={String(data.totals.connectedAccounts)} helper="Read-only mock Meta connections" accent="green" />
-        <KpiCard label="Portfolio clicks" value={formatMetric(data.deliveryMetrics.clicks)} metric={data.deliveryMetrics.clicks} helper="Aggregated non-financial metric" />
+        <KpiCard label="Clients" value={String(data.totals.clients)} helper="Managed clients" accent="purple" />
+        <KpiCard label="Connected accounts" value={String(data.totals.connectedAccounts)} helper="Connected accounts" accent="green" />
+        <KpiCard label="Portfolio clicks" value={formatMetric(data.deliveryMetrics.clicks)} metric={data.deliveryMetrics.clicks} helper="Total clicks" />
       </section>
 
       <Card>
         <CardHeader>
           <CardTitle>Client list</CardTitle>
-          <CardDescription>Search/sort UI will be expanded in the table milestone; this table already uses verified mock analytics.</CardDescription>
+          <CardDescription>Verified mock analytics.</CardDescription>
         </CardHeader>
         <CardContent>
           <MetricsTable

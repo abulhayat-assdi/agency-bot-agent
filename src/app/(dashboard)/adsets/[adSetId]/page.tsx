@@ -32,7 +32,7 @@ export default async function AdSetReportPage({ params, searchParams }: Props) {
       <ReportBreadcrumbs context={report.context} />
       <section className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Ad Set Report</p>
+          <p className="section-eyebrow">Ad Set Report</p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight">{report.context.adSet.name}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {report.context.adSet.id} · {report.context.adSet.optimizationGoal} · {formatDateRange(report.range)}

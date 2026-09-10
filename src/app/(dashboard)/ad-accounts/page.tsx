@@ -17,15 +17,15 @@ export default async function AdAccountsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Ad Accounts</p>
-          <h2 className="mt-2 text-3xl font-bold tracking-tight">Connected Meta account registry</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Read-only account metadata, timezone, currency, sync freshness, and reporting summary.</p>
+          <p className="section-eyebrow">Ad Accounts</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight">Ad account registry</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Account metadata, currency, timezone, and performance.</p>
         </div>
-        <Badge variant="success">Read-only provider</Badge>
+        <Badge variant="success">Read-only</Badge>
       </div>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <KpiCard label="Accounts" value={String(data.accounts.length)} helper="Mock connected accounts" accent="green" />
+        <KpiCard label="Accounts" value={String(data.accounts.length)} helper="Connected accounts" accent="green" />
         <KpiCard label="Selected impressions" value={formatMetric(data.deliveryMetrics.impressions)} metric={data.deliveryMetrics.impressions} />
         <KpiCard label="Selected conversions" value={formatMetric(data.deliveryMetrics.conversions)} metric={data.deliveryMetrics.conversions} accent="purple" />
       </section>
@@ -33,7 +33,7 @@ export default async function AdAccountsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Account health</CardTitle>
-          <CardDescription>Currency and timezone are visible to prevent incorrect reporting assumptions.</CardDescription>
+          <CardDescription>Currency and timezone visible.</CardDescription>
         </CardHeader>
         <CardContent>
           <MetricsTable

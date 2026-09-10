@@ -56,7 +56,7 @@ export default async function BreakdownsPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Breakdown Analytics</p>
+          <p className="section-eyebrow">Breakdown Analytics</p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight">Audience, placement, device, geo, and time analysis</h2>
           <p className="mt-2 max-w-4xl text-sm text-muted-foreground">
             {data.selectedCapability.label} · {formatDateRange(data.range)} · {data.selectedAccount.name} · {data.selectedAccount.currency}
@@ -119,17 +119,17 @@ export default async function BreakdownsPage({ searchParams }: PageProps) {
           <CardContent className="space-y-3">
             {data.selectedCapability.notes.map((note) => (
               <div key={note} className="flex gap-2 text-sm text-muted-foreground">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" aria-hidden="true" />
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 {note}
               </div>
             ))}
             {data.selectedCapability.metricLimitations.map((note) => (
-              <div key={note} className="flex gap-2 text-sm text-amber-100/80">
+              <div key={note} className="flex gap-2 text-sm text-amber-700 dark:text-amber-300">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
                 {note}
               </div>
             ))}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs text-muted-foreground">
+            <div className="rounded-2xl metric-surface p-3 text-xs text-muted-foreground">
               Incompatible fields: {data.selectedCapability.incompatibleFields.join(", ")}
             </div>
           </CardContent>
@@ -164,7 +164,7 @@ export default async function BreakdownsPage({ searchParams }: PageProps) {
 
       <section className="space-y-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Capability matrix</p>
+          <p className="section-eyebrow">Capability matrix</p>
           <h3 className="mt-2 text-2xl font-bold tracking-tight">Supported and conditional breakdowns</h3>
         </div>
         <CapabilityGrid capabilities={data.capabilities} selectedKey={data.selectedCapability.key} selectedAccount={data.selectedAccount} preset={preset} />
@@ -179,8 +179,8 @@ export default async function BreakdownsPage({ searchParams }: PageProps) {
           <CardContent className="space-y-3">
             {data.unsupportedExamples.map((example) => (
               <div key={example.key} className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3 text-sm">
-                <div className="font-semibold text-amber-100">{example.label}</div>
-                <p className="mt-1 text-xs text-amber-100/75">{example.reason}</p>
+                <div className="font-semibold text-amber-800 dark:text-amber-100">{example.label}</div>
+                <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80">{example.reason}</p>
               </div>
             ))}
           </CardContent>
@@ -194,12 +194,12 @@ export default async function BreakdownsPage({ searchParams }: PageProps) {
           <CardContent className="space-y-3">
             {data.caveats.map((caveat) => (
               <div key={caveat} className="flex gap-2 text-sm text-muted-foreground">
-                <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" aria-hidden="true" />
+                <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 {caveat}
               </div>
             ))}
             <div className="flex gap-2 text-sm text-muted-foreground">
-              <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" aria-hidden="true" />
+              <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               Hourly values are labeled in the selected account context and never use browser timezone.
             </div>
           </CardContent>

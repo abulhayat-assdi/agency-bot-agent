@@ -48,7 +48,7 @@ export default async function AiAnalystPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Grounded analytics chat</p>
+          <p className="section-eyebrow">Grounded analytics chat</p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight">AI Analyst</h2>
           <p className="mt-2 max-w-4xl text-sm text-muted-foreground">
             Ask account-specific questions that are answered only after controlled read-only analytics tools return verified context.
@@ -76,27 +76,27 @@ export default async function AiAnalystPage({ searchParams }: PageProps) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BrainCircuit className="h-5 w-5 text-sky-300" aria-hidden="true" />
+              <BrainCircuit className="h-5 w-5 text-primary" aria-hidden="true" />
               Accuracy-first analyst ready
             </CardTitle>
             <CardDescription>Select a suggested prompt or ask your own question.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-sky-100">
+            <div className="rounded-3xl metric-surface p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <DatabaseZap className="h-4 w-4" aria-hidden="true" />
                 Tool-first answers
               </div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">Every analytical answer includes visible tool evidence, metric states, date range, timezone, and caveats.</p>
             </div>
-            <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-100">
+            <div className="rounded-3xl metric-surface p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-100">
                 <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                 No write actions
               </div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">The AI cannot create, edit, pause, delete, target, budget, or mutate Meta entities.</p>
             </div>
-            <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-4">
+            <div className="rounded-3xl metric-surface p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-purple-100">
                 <Bot className="h-4 w-4" aria-hidden="true" />
                 OpenAI optional

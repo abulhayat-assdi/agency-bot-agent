@@ -14,7 +14,7 @@ export function LoginForm() {
   return (
     <form action={formAction} className="space-y-4">
       <div className="space-y-2">
-        <label htmlFor="email" className="text-sm font-medium text-slate-200">
+        <label htmlFor="email" className="text-sm font-medium text-foreground">
           Admin email
         </label>
         <input
@@ -23,12 +23,12 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           required
-          className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none transition placeholder:text-slate-500 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+          className="h-11 w-full rounded-xl border border-input bg-card/70 dark:border-white/10 dark:bg-white/5 px-3 text-sm outline-none transition placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary/30"
           placeholder="admin@example.com"
         />
       </div>
       <div className="space-y-2">
-        <label htmlFor="password" className="text-sm font-medium text-slate-200">
+        <label htmlFor="password" className="text-sm font-medium text-foreground">
           Password
         </label>
         <input
@@ -37,7 +37,7 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
-          className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none transition placeholder:text-slate-500 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/30"
+          className="h-11 w-full rounded-xl border border-input bg-card/70 dark:border-white/10 dark:bg-white/5 px-3 text-sm outline-none transition placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary/30"
           placeholder="Enter password"
         />
       </div>

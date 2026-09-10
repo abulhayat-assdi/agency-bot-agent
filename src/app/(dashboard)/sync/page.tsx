@@ -27,9 +27,9 @@ export default function SyncOperationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/40 lg:flex-row lg:items-center">
+      <div className="flex flex-col justify-between gap-4 rounded-3xl border border-border/80 bg-card/80 dark:border-white/10 dark:bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/40 lg:flex-row lg:items-center">
         <div>
-          <p className="text-sm font-medium uppercase tracking-[0.3em] text-sky-300">Milestone 10</p>
+          <p className="text-sm font-medium uppercase tracking-[0.3em] text-primary">Milestone 10</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight">Redis and BullMQ sync operations</h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
             Background job architecture for scheduled Meta ingestion, retry-safe queue processing, and worker/runtime health. Live database persistence
@@ -44,7 +44,7 @@ export default function SyncOperationsPage() {
           <CardHeader className="space-y-1">
             <CardDescription>Queue</CardDescription>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <DatabaseZap className="h-5 w-5 text-sky-300" aria-hidden="true" />
+              <DatabaseZap className="h-5 w-5 text-primary" aria-hidden="true" />
               {readiness.queueName}
             </CardTitle>
           </CardHeader>
@@ -91,7 +91,7 @@ export default function SyncOperationsPage() {
           <CardContent>
             <ol className="grid gap-3 sm:grid-cols-2">
               {lifecycle.map((item, index) => (
-                <li key={item} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                <li key={item} className="rounded-2xl metric-surface p-4">
                   <div className="flex items-center gap-3">
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400/10 text-sm font-semibold text-sky-200">{index + 1}</span>
                     <span className="text-sm font-medium capitalize">{item}</span>
@@ -124,8 +124,8 @@ export default function SyncOperationsPage() {
           <CardDescription>Run these in a Redis-enabled environment. They intentionally fail fast when REDIS_URL is missing.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm md:grid-cols-2">
-          <code className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sky-100">npm run jobs:schedule-sync</code>
-          <code className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sky-100">npm run jobs:worker</code>
+          <code className="rounded-2xl border border-border/80 bg-muted dark:border-white/10 dark:bg-slate-950/70 p-4 text-foreground">npm run jobs:schedule-sync</code>
+          <code className="rounded-2xl border border-border/80 bg-muted dark:border-white/10 dark:bg-slate-950/70 p-4 text-foreground">npm run jobs:worker</code>
           <div className="flex items-center gap-2 text-muted-foreground md:col-span-2">
             <CheckCircle2 className="h-4 w-4 text-emerald-300" aria-hidden="true" />
             API readiness endpoint: <code className="rounded bg-white/10 px-2 py-1 text-xs">/api/jobs/health</code>

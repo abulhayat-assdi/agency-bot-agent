@@ -54,7 +54,7 @@ export default async function TrendsPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-sky-300">Trends and Comparison</p>
+          <p className="section-eyebrow">Trends and Comparison</p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight">Performance movement intelligence</h2>
           <p className="mt-2 max-w-4xl text-sm text-muted-foreground">
             {data.selectedAccount.name} · {formatDateRange(data.range)} vs {formatDateRange(data.previousRange)} · Ranking {data.entityLevel}s by {metricLabel(data.metricKey)}
@@ -97,7 +97,7 @@ export default async function TrendsPage({ searchParams }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             {data.topMovers.map((entity) => (
-              <div key={entity.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              <div key={entity.id} className="rounded-2xl metric-surface p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold">{entity.name}</p>
@@ -193,15 +193,15 @@ export default async function TrendsPage({ searchParams }: PageProps) {
             {data.accountAnomalies.length ? (
               data.accountAnomalies.map((anomaly) => (
                 <div key={anomaly.type} className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3 text-sm">
-                  <div className="flex items-center gap-2 font-semibold text-amber-100">
+                  <div className="flex items-center gap-2 font-semibold text-amber-800 dark:text-amber-100">
                     <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                     {anomaly.type.replaceAll("_", " ")} · {anomaly.severity}
                   </div>
-                  <p className="mt-1 text-xs text-amber-100/75">{anomaly.explanation}</p>
+                  <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80">{anomaly.explanation}</p>
                 </div>
               ))
             ) : (
-              <p className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100/80">No configured threshold anomalies detected.</p>
+              <p className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-700 dark:text-emerald-300">No configured threshold anomalies detected.</p>
             )}
           </CardContent>
         </Card>
@@ -214,7 +214,7 @@ export default async function TrendsPage({ searchParams }: PageProps) {
           <CardContent className="space-y-3">
             {data.caveats.map((caveat) => (
               <div key={caveat} className="flex gap-2 text-sm text-muted-foreground">
-                <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" aria-hidden="true" />
+                <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                 {caveat}
               </div>
             ))}
