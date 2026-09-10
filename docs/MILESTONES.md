@@ -315,7 +315,22 @@ Commit: `feat: add read only meta ads integration`
 
 ## Milestone 14: Testing + Hardening
 
+Status: complete when commit `test: harden reporting platform` is pushed.
+
 Unit, integration, E2E, security, performance, error states, data integrity.
+
+Implemented scope:
+
+- Global baseline browser/API security headers with production-only HSTS and preview-safe frame behavior
+- API response header hardening for health, Meta health, jobs health, AI analyst, and email report send routes
+- In-memory API rate limiting for AI analyst and email send routes with safe retry headers
+- Safer API error responses for AI and email send failures
+- Email report ID bounds and missing report `404` handling
+- Meta provider factory readiness and live-mode fail-fast checks
+- Route-level tests for AI analyst and email report send APIs
+- Security header and API rate limiter tests
+- Additional Meta provider factory hardening tests
+- Testing/hardening documentation
 
 Commit: `test: harden reporting platform`
 

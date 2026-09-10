@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { getMetaProviderReadiness } from "@/server/meta";
+import { applySecurityHeaders } from "@/server/security/headers";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
   const readiness = getMetaProviderReadiness();
-  return NextResponse.json({
+  const response = NextResponse.json({
     ok: readiness.configured,
     service: "meta-provider",
     provider: readiness.provider,
@@ -16,4 +17,6 @@ export function GET() {
     readOnlyPermission: readiness.readOnlyPermission,
     writePermissionsRequested: readiness.writePermissionsRequested
   });
+  applySecurityHeaders(response.headers);
+  return response;
 }

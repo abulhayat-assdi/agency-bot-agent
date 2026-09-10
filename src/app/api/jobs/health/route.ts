@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { getSyncQueueReadiness } from "@/server/jobs";
+import { applySecurityHeaders } from "@/server/security/headers";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
   const readiness = getSyncQueueReadiness();
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     ok: readiness.configured,
     service: "bullmq-sync-queue",
     queue: readiness.queueName,
@@ -17,4 +18,6 @@ export function GET() {
     repeatableSyncIntervalMinutes: readiness.repeatableSyncIntervalMinutes,
     readOnlyMetaMode: true
   });
+  applySecurityHeaders(response.headers);
+  return response;
 }

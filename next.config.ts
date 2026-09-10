@@ -1,9 +1,19 @@
 import type { NextConfig } from "next";
 
+import { securityHeadersForEnvironment } from "./src/server/security/headers";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  typedRoutes: false
+  typedRoutes: false,
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: securityHeadersForEnvironment()
+      }
+    ];
+  }
 };
 
 export default nextConfig;
