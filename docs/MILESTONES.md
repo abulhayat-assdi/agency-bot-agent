@@ -273,7 +273,22 @@ Commit: `feat: add grounded openai ai analyst`
 
 ## Milestone 12: Email Reporting
 
+Status: complete when commit `feat: add scheduled email reporting` is pushed.
+
 Report schedules, recipients, templates, delivery logs, configuration UI.
+
+Implemented scope:
+
+- Typed email report configuration, recipient, schedule, rendered content, provider, and delivery log models
+- Mock and Resend-compatible email provider abstraction
+- Provider readiness without exposing credentials
+- Mock-backed report schedules for account summary, performance alerts, and selected-ad watchlist examples
+- Deterministic email template rendering with account scope, date range, timezone, KPI states, anomalies, optional grounded AI summary, dashboard links, and caveats
+- Delivery send service with enabled/disabled handling, active-recipient filtering, safe provider failures, and delivery log output
+- `/email-reports` UI for schedule configuration model, recipients, rendered previews, delivery history, provider state, and caveats
+- `POST /api/email-reports/send` protected send endpoint
+- Tests for rendering, provider abstraction, disabled-report skipping, safe failures, and provider readiness redaction
+- Email reporting documentation updated
 
 Commit: `feat: add scheduled email reporting`
 
