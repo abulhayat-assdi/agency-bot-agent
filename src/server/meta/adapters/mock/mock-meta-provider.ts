@@ -1,4 +1,5 @@
 import { MetaApiError } from "@/server/meta/errors";
+import { breakdownCapabilities } from "@/server/breakdowns/capabilities";
 import { aggregateInsightRows, createAdDailyMetrics, nameForEntity, parentIdsForLevel } from "@/server/meta/adapters/mock/metrics";
 import { eachDateInRange } from "@/server/meta/adapters/mock/date-utils";
 import { findBreakdownCapability, getBreakdownKey, splitInsightByBreakdown } from "@/server/meta/adapters/mock/breakdowns";
@@ -8,6 +9,9 @@ import type {
   MetaAdsProvider,
   MetaBreakdownQuery,
   MetaBreakdownRow,
+  MetaCurrentUser,
+  MetaConnectionHealth,
+  MetaBreakdownCapabilityInfo,
   MetaEntityLevel,
   MetaInsightRow,
   MetaInsightsQuery,
@@ -49,6 +53,46 @@ export class MockMetaAdsProvider implements MetaAdsProvider {
   async listAdAccounts(paging?: MetaPaging) {
     this.checkSimulation();
     return paginate(mockAccounts, paging);
+  }
+
+  async getCurrentUser(): Promise<MetaCurrentUser> {
+    this.checkSimulation();
+    return { id: "mock_user_1", name: "Mock Agency Owner" };
+  }
+
+  async getAdAccount(accountId: string) {
+    this.checkSimulation();
+    return mockAccounts.find((item) => item.id === accountId || item.accountId === accountId) ?? null;
+  }
+
+  async getAd(accountId: string, adId: string) {
+    this.checkSimulation();
+    this.assertAccount(accountId);
+    return mockAds.find((ad) => ad.accountId === this.assertAccount(accountId).id && ad.id === adId) ?? null;
+  }
+
+  async getAvailableBreakdowns(level?: MetaEntityLevel): Promise<MetaBreakdownCapabilityInfo[]> {
+    this.checkSimulation();
+    return breakdownCapabilities
+      .filter((capability) => !level || capability.supportedLevels.includes(level))
+      .map((capability) => ({
+        key: capability.key,
+        label: capability.label,
+        dimensions: capability.dimensions,
+        supported: capability.supported,
+        supportedLevels: capability.supportedLevels,
+        notes: capability.notes
+      }));
+  }
+
+  async healthCheck(): Promise<MetaConnectionHealth> {
+    try {
+      this.checkSimulation();
+      const accounts = mockAccounts.length;
+      return { status: "connected", user: { id: "mock_user_1", name: "Mock Agency Owner" }, adAccountCount: accounts, checkedAt: new Date().toISOString() };
+    } catch {
+      return { status: "api_error", checkedAt: new Date().toISOString() };
+    }
   }
 
   async listCampaigns(accountId: string, paging?: MetaPaging) {

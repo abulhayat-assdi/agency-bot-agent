@@ -11,17 +11,39 @@ export type GraphApiHttpClientOptions = {
   fetchImpl?: typeof fetch;
   baseUrl?: string;
   timeoutMs?: number;
+  maxRetries?: number;
+  retryBaseMs?: number;
 };
 
-const RETRYABLE_ERROR_CODES = new Set([1, 2, 4, 17, 341, 368]);
-const PERMISSION_ERROR_CODES = new Set([3, 10, 190, 200]);
+const RETRYABLE_ERROR_CODES = new Set([1, 2, 4, 17, 341, 368, 80000, 80001]);
+const PERMISSION_ERROR_CODES = new Set([3, 10, 200, 294, 298]);
+const AUTH_ERROR_CODES = new Set([102, 190, 191, 10200]);
+const UNSUPPORTED_BREAKDOWN_SUBCODES = new Set([10554, 100, 10555]);
 
-function classifyError(code?: number, type?: string): { kind: MetaApiErrorKind; retryable: boolean } {
+function classifyError(code?: number, subcode?: number, type?: string, httpStatus?: number): { kind: MetaApiErrorKind; retryable: boolean } {
+  if (code && AUTH_ERROR_CODES.has(code)) return { kind: "authentication", retryable: false };
+  if (type === "OAuthException" && (code === 190 || code === 102)) return { kind: "authentication", retryable: false };
   if (code && PERMISSION_ERROR_CODES.has(code)) return { kind: "permission", retryable: false };
-  if (type === "OAuthException" && code !== 1 && code !== 2 && code !== 4 && code !== 17) return { kind: "permission", retryable: false };
+  if (code === 200 || code === 10) return { kind: "permission", retryable: false };
+  if (httpStatus === 401 || httpStatus === 403) return { kind: "permission", retryable: false };
+  if (httpStatus === 429) return { kind: "rate_limit", retryable: true };
+  if (subcode && UNSUPPORTED_BREAKDOWN_SUBCODES.has(subcode)) {
+    // Only call it unsupported_breakdown when message also suggests breakdowns; caller refines.
+    return { kind: "invalid_request", retryable: false };
+  }
   if (code && RETRYABLE_ERROR_CODES.has(code)) return { kind: "rate_limit", retryable: true };
+  if (httpStatus !== undefined && httpStatus >= 500 && httpStatus < 600) return { kind: "transient", retryable: true };
   if (code === 100) return { kind: "invalid_request", retryable: false };
+  if (code === 803 || code === 80300) return { kind: "not_found", retryable: false };
+  if (httpStatus === 404) return { kind: "not_found", retryable: false };
+  if (httpStatus !== undefined && httpStatus >= 400 && httpStatus < 500) return { kind: "invalid_request", retryable: false };
   return { kind: "transient", retryable: true };
+}
+
+export function isUnsupportedBreakdownMessage(message?: string) {
+  if (!message) return false;
+  const normalized = message.toLowerCase();
+  return normalized.includes("breakdown") && (normalized.includes("not supported") || normalized.includes("invalid") || normalized.includes("cannot be") || normalized.includes("unsupported"));
 }
 
 function safePath(path: string) {
@@ -43,6 +65,32 @@ export class GraphApiHttpClient {
   }
 
   private async request<T>(path: string, params: Record<string, string | number | boolean | undefined> = {}): Promise<T> {
+    const maxRetries = Math.max(0, Math.min(this.options.maxRetries ?? 3, 5));
+    const baseMs = this.options.retryBaseMs ?? 400;
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      try {
+        return await this.singleRequest<T>(path, params);
+      } catch (error) {
+        lastError = error;
+        if (!(error instanceof MetaApiError) || !error.retryable || attempt === maxRetries) throw error;
+        const backoffMs = Math.min(baseMs * 2 ** attempt, 8000) + Math.floor(Math.random() * 150);
+        logger.warn("Meta Graph API retryable failure, backing off", {
+          path: safePath(path),
+          kind: error.kind,
+          code: error.code,
+          attempt: attempt + 1,
+          backoffMs
+        });
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      }
+    }
+
+    throw lastError;
+  }
+
+  private async singleRequest<T>(path: string, params: Record<string, string | number | boolean | undefined> = {}): Promise<T> {
     const requestId = crypto.randomUUID();
     const url = new URL(`${this.baseUrl}/${this.options.graphApiVersion}${safePath(path)}`);
     const sanitizedParams: Record<string, string> = {};
@@ -73,6 +121,9 @@ export class GraphApiHttpClient {
       if (error instanceof Error && error.name === "AbortError") {
         throw new MetaApiError("Meta Graph API request timed out", "transient", "timeout", true, { requestId, path: safePath(path) });
       }
+      if (error instanceof TypeError || error instanceof Error) {
+        throw new MetaApiError("Meta Graph API network error", "network", "network_error", true, { requestId, path: safePath(path) });
+      }
       throw error;
     } finally {
       clearTimeout(timeout);
@@ -82,7 +133,12 @@ export class GraphApiHttpClient {
 
     if (!response.ok || body.error) {
       const graphError = body.error;
-      const { kind, retryable } = classifyError(graphError?.code, graphError?.type);
+      const classified = classifyError(graphError?.code, graphError?.error_subcode, graphError?.type, response.status);
+      let kind = classified.kind;
+      const retryable = classified.retryable;
+      if (kind === "invalid_request" && isUnsupportedBreakdownMessage(graphError?.message)) {
+        kind = "unsupported_breakdown";
+      }
       throw new MetaApiError(graphError?.message ?? `Meta Graph API request failed with status ${response.status}`, kind, String(graphError?.code ?? response.status), retryable, {
         requestId,
         path: safePath(path),

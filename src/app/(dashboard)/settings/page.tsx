@@ -8,6 +8,7 @@ import { getAppConfig, getRuntimeReadiness } from "@/server/config/env";
 import { getEmailProviderReadiness } from "@/server/email";
 import { getMetaProviderReadiness } from "@/server/meta";
 import { getSyncQueueReadiness } from "@/server/jobs";
+import { MetaIntegrationPanel } from "@/app/(dashboard)/settings/meta-integration-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </section>
+
+      <MetaIntegrationPanel />
 
       <Card>
         <CardHeader>

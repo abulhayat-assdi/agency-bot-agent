@@ -50,6 +50,14 @@ Milestone 0 established the repository baseline, current environment findings, v
 
 Milestone 1 uses npm with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style primitives, ESLint, Prettier, and Vitest. Use `npm run dev`, `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build` for local validation. Database commands are `npm run db:generate`, `npm run db:migrate`, `npm run db:studio`, and `npm run db:seed`. Job commands are `npm run jobs:schedule-sync` and `npm run jobs:worker`; they require `REDIS_URL`. Deployment readiness can be checked with `npm run deploy:check`; Docker/Coolify details are in `docs/DEPLOYMENT.md`.
 
+## Meta integration (read-only Phase 1)
+
+- Default local mode is `META_PROVIDER=mock` with deterministic seeded data; no Meta credentials are required.
+- Live mode uses `META_PROVIDER=graph-api` with `META_GRAPH_API_VERSION=v26.0` and `META_SYSTEM_USER_ACCESS_TOKEN` from the environment only. Never commit tokens or paste them into source, tests, README, or browser storage.
+- Phase 1 is strictly read-only (`ads_read`); the provider performs GET requests only and exposes no campaign/ad mutation API.
+- Verify integration from Settings → Meta integration with Test Connection, Discover Ad Accounts, and Sync Account, or via `/api/meta/health?live=true`, `/api/meta/accounts`, and `/api/meta/sync`.
+- Optional live smoke test (explicit only, never in CI): set `META_LIVE_TEST=true` with a valid token, then run `npm run meta:live-smoke`. It checks `/me`, `/me/adaccounts`, and one Insights request without printing secrets.
+
 ## Security
 
 Never commit real `.env` files or secrets. Use `.env.example` placeholders only.

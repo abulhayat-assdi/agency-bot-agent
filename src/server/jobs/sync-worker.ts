@@ -4,6 +4,7 @@ import { resolveDatePreset } from "@/lib/dates/reporting";
 import { getAppConfig } from "@/server/config/env";
 import { MetaApiError } from "@/server/meta/errors";
 import { createGraphApiMetaAdsProvider, createMockMetaAdsProvider } from "@/server/meta";
+import { fetchAllPagesBounded } from "@/server/meta/pagination";
 import type { MetaAdsProvider, MetaBreakdownRow, MetaDateRange, MetaEntityLevel, MetaInsightRow, MetaPage, MetaPaging } from "@/server/meta/types";
 import { logger } from "@/server/observability/logger";
 import { createRedisConnection } from "@/server/jobs/redis";
@@ -43,15 +44,10 @@ export function createMetaAdsProviderForJobs(env: Record<string, string | undefi
 }
 
 async function fetchAllPages<T>(fetchPage: (paging?: MetaPaging) => Promise<MetaPage<T>>): Promise<T[]> {
-  const rows: T[] = [];
-  let after: string | undefined;
-
-  do {
-    const page = await fetchPage({ limit: 100, after });
-    rows.push(...page.data);
-    after = page.paging.cursors.after;
-  } while (after);
-
+  const { rows, truncated } = await fetchAllPagesBounded(fetchPage, { maxPages: 50, pageSize: 100 });
+  if (truncated) {
+    logger.warn("Meta sync pagination truncated at safety bound", { maxPages: 50 });
+  }
   return rows;
 }
 

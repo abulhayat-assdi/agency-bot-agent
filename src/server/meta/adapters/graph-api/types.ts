@@ -99,11 +99,17 @@ export type GraphInsightRow = {
   spend?: string;
   impressions?: string;
   reach?: string;
+  frequency?: string;
   clicks?: string;
+  ctr?: string;
+  cpc?: string;
+  cpm?: string;
   inline_link_clicks?: string;
   outbound_clicks?: GraphActionMetric[];
   actions?: GraphActionMetric[];
   action_values?: GraphActionMetric[];
+  cost_per_action_type?: GraphActionMetric[];
+  landing_page_views?: string | GraphActionMetric[];
   [breakdown: string]: unknown;
 };
 

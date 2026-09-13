@@ -35,6 +35,10 @@ export function createAdDailyMetrics(ad: MetaAd, account: MetaAdAccount, date: s
     clicks,
     linkClicks,
     outboundClicks,
+    ctr: impressions > 0 ? round((clicks / impressions) * 100, 4) : clicks === 0 ? 0 : null,
+    cpc: clicks > 0 ? round(spend / clicks, 6) : clicks === 0 ? 0 : null,
+    cpm: impressions > 0 ? round((spend / impressions) * 1000, 6) : impressions === 0 ? 0 : null,
+    frequency: reach && reach > 0 ? round(impressions / reach, 4) : null,
     conversions,
     conversionValue,
     videoMetrics: ad.name.includes("Video")
@@ -84,8 +88,7 @@ export function aggregateInsightRows(rows: MetaInsightRow[], level: MetaInsightR
   const first = rows[0];
   if (!first) throw new Error("Cannot aggregate empty insight rows");
 
-  const sumNullable = (key: keyof Pick<MetaMetrics, "spend" | "impressions" | "reach" | "clicks" | "linkClicks" | "outboundClicks" | "conversions" | "conversionValue">) => {
-    const values = rows.map((row) => row[key]);
+  const sumNullable = (key: keyof Pick<MetaMetrics, "spend" | "impressions" | "reach" | "clicks" | "linkClicks" | "outboundClicks" | "conversions" | "conversionValue">) => {    const values = rows.map((row) => row[key]);
     const available = values.filter((value): value is number => typeof value === "number");
     if (available.length === 0) return null;
     return round(available.reduce((total, value) => total + value, 0), key === "impressions" || key === "reach" || key === "clicks" || key === "linkClicks" || key === "outboundClicks" ? 0 : 2);
@@ -96,6 +99,11 @@ export function aggregateInsightRows(rows: MetaInsightRow[], level: MetaInsightR
     const states = new Set(rows.map((row) => row.availability[key]).filter(Boolean));
     availability[key] = states.has("unavailable") || states.has("unsupported") || states.has("null_from_source") ? "partial" : "available";
   }
+
+  const spend = sumNullable("spend");
+  const impressions = sumNullable("impressions");
+  const reach = sumNullable("reach");
+  const clicks = sumNullable("clicks");
 
   return {
     accountId: first.accountId,
@@ -108,12 +116,16 @@ export function aggregateInsightRows(rows: MetaInsightRow[], level: MetaInsightR
     currency: first.currency,
     attributionContext: first.attributionContext,
     availability,
-    spend: sumNullable("spend"),
-    impressions: sumNullable("impressions"),
-    reach: sumNullable("reach"),
-    clicks: sumNullable("clicks"),
+    spend,
+    impressions,
+    reach,
+    clicks,
     linkClicks: sumNullable("linkClicks"),
     outboundClicks: sumNullable("outboundClicks"),
+    ctr: impressions && impressions > 0 && clicks !== null ? round((clicks / impressions) * 100, 4) : null,
+    cpc: clicks && clicks > 0 && spend !== null ? round(spend / clicks, 6) : null,
+    cpm: impressions && impressions > 0 && spend !== null ? round((spend / impressions) * 1000, 6) : null,
+    frequency: reach && reach > 0 && impressions !== null ? round(impressions / reach, 4) : null,
     conversions: sumNullable("conversions"),
     conversionValue: sumNullable("conversionValue"),
     videoMetrics: {},

@@ -82,6 +82,10 @@ export type MetaMetrics = {
   clicks: number | null;
   linkClicks: number | null;
   outboundClicks: number | null;
+  ctr: number | null;
+  cpc: number | null;
+  cpm: number | null;
+  frequency: number | null;
   conversions: number | null;
   conversionValue: number | null;
   videoMetrics?: Record<string, number | null>;
@@ -111,20 +115,47 @@ export type MetaInsightsQuery = {
   accountId: string;
   level: MetaEntityLevel;
   dateRange: MetaDateRange;
+  datePreset?: "today" | "yesterday" | "last_7d" | "last_30d";
   entityIds?: string[];
-  timeIncrement?: "all_days" | 1;
+  timeIncrement?: "all_days" | 1 | "hourly";
 } & MetaPaging;
 
 export type MetaBreakdownQuery = MetaInsightsQuery & {
   breakdowns: string[];
 };
 
+export type MetaCurrentUser = {
+  id: string;
+  name: string;
+};
+
+export type MetaConnectionHealth =
+  | { status: "connected"; user: MetaCurrentUser; adAccountCount: number; checkedAt: string }
+  | { status: "not_configured"; checkedAt: string }
+  | { status: "authentication_failed"; checkedAt: string }
+  | { status: "permission_denied"; checkedAt: string }
+  | { status: "api_error"; checkedAt: string };
+
+export type MetaBreakdownCapabilityInfo = {
+  key: string;
+  label: string;
+  dimensions: string[];
+  supported: boolean;
+  supportedLevels: MetaEntityLevel[];
+  notes: string[];
+};
+
 export interface MetaAdsProvider {
+  getCurrentUser(): Promise<MetaCurrentUser>;
   listAdAccounts(paging?: MetaPaging): Promise<MetaPage<MetaAdAccount>>;
+  getAdAccount(accountId: string): Promise<MetaAdAccount | null>;
   listCampaigns(accountId: string, paging?: MetaPaging): Promise<MetaPage<MetaCampaign>>;
   listAdSets(accountId: string, campaignId?: string, paging?: MetaPaging): Promise<MetaPage<MetaAdSet>>;
   listAds(accountId: string, adSetId?: string, paging?: MetaPaging): Promise<MetaPage<MetaAd>>;
+  getAd(accountId: string, adId: string): Promise<MetaAd | null>;
   getCreative(adId: string): Promise<MetaCreative | null>;
   getInsights(query: MetaInsightsQuery): Promise<MetaPage<MetaInsightRow>>;
   getBreakdowns(query: MetaBreakdownQuery): Promise<MetaPage<MetaBreakdownRow>>;
+  getAvailableBreakdowns(level?: MetaEntityLevel): Promise<MetaBreakdownCapabilityInfo[]>;
+  healthCheck(): Promise<MetaConnectionHealth>;
 }

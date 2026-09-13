@@ -1,5 +1,6 @@
 import { GraphApiHttpClient, type GraphApiHttpClientOptions } from "@/server/meta/adapters/graph-api/http-client";
 import type {
+  GraphActionMetric,
   GraphAd,
   GraphAdAccount,
   GraphAdSet,
@@ -7,16 +8,21 @@ import type {
   GraphCreative,
   GraphInsightRow
 } from "@/server/meta/adapters/graph-api/types";
+import { breakdownCapabilities, validateBreakdownRequest } from "@/server/breakdowns/capabilities";
+import { MetaApiError } from "@/server/meta/errors";
 import type {
   MetaAd,
   MetaAdAccount,
   MetaAdsProvider,
   MetaAdSet,
   MetaAvailabilityState,
+  MetaBreakdownCapabilityInfo,
   MetaBreakdownQuery,
   MetaBreakdownRow,
   MetaCampaign,
+  MetaConnectionHealth,
   MetaCreative,
+  MetaCurrentUser,
   MetaEntityLevel,
   MetaInsightRow,
   MetaInsightsQuery,
@@ -44,11 +50,22 @@ const INSIGHT_FIELDS = [
   "spend",
   "impressions",
   "reach",
+  "frequency",
   "clicks",
+  "ctr",
+  "cpc",
+  "cpm",
   "inline_link_clicks",
   "outbound_clicks",
   "actions",
-  "action_values"
+  "action_values",
+  "cost_per_action_type",
+  "video_p25_watched_actions",
+  "video_p50_watched_actions",
+  "video_p75_watched_actions",
+  "video_p100_watched_actions",
+  "video_avg_time_watched_actions",
+  "landing_page_views"
 ].join(",");
 
 const CONVERSION_ACTION_TYPES = new Set([
@@ -59,6 +76,17 @@ const CONVERSION_ACTION_TYPES = new Set([
   "offsite_conversion.fb_pixel_lead",
   "complete_registration",
   "subscribe"
+]);
+
+const VIDEO_METRIC_KEYS = new Set([
+  "video_p25_watched_actions",
+  "video_p50_watched_actions",
+  "video_p75_watched_actions",
+  "video_p100_watched_actions",
+  "video_p95_watched_actions",
+  "video_avg_time_watched_actions",
+  "video_play_actions",
+  "video_thruplay_watched_actions"
 ]);
 
 function cursorPaging(paging?: MetaPaging) {
@@ -90,6 +118,21 @@ function parseNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeActionMetrics(actions: GraphInsightRow["actions"]): Record<string, number | null> {
+  const normalized: Record<string, number | null> = {};
+  for (const action of actions ?? []) {
+    if (!action.action_type) continue;
+    // Never overwrite with a worse value; sum duplicates deterministically.
+    const parsed = parseNumber(action.value);
+    if (parsed === null) {
+      if (!(action.action_type in normalized)) normalized[action.action_type] = null;
+      continue;
+    }
+    normalized[action.action_type] = (normalized[action.action_type] ?? 0) + parsed;
+  }
+  return normalized;
+}
+
 function sumActions(actions: GraphInsightRow["actions"], actionTypes = CONVERSION_ACTION_TYPES) {
   if (!actions) return null;
   let found = false;
@@ -103,19 +146,55 @@ function sumActions(actions: GraphInsightRow["actions"], actionTypes = CONVERSIO
 
 function sumOutboundClicks(actions: GraphInsightRow["outbound_clicks"]) {
   if (!actions) return null;
+  if (actions.length === 0) return null;
   return actions.reduce((sum, action) => sum + (parseNumber(action.value) ?? 0), 0);
 }
 
+function extractVideoMetrics(row: GraphInsightRow): Record<string, number | null> {
+  const metrics: Record<string, number | null> = {};
+  for (const key of VIDEO_METRIC_KEYS) {
+    const raw = row[key];
+    if (raw === undefined) continue;
+    if (Array.isArray(raw)) {
+      // Meta returns some video metrics as action arrays.
+      const total = (raw as Array<{ value?: string }>).reduce((sum, item) => sum + (parseNumber(item.value) ?? 0), 0);
+      metrics[key] = total;
+    } else {
+      metrics[key] = parseNumber(raw as string | number | null);
+    }
+  }
+  return metrics;
+}
+
+function availabilityForMetric(value: number | null, sourcePresent: boolean): MetaAvailabilityState {
+  if (!sourcePresent) return "null_from_source";
+  if (value === null) return "null_from_source";
+  if (value === 0) return "actual_zero";
+  return "available";
+}
+
 function availabilityFor(row: GraphInsightRow, metrics: MetaMetrics): Partial<Record<keyof MetaMetrics, MetaAvailabilityState>> {
+  const hasActions = Array.isArray(row.actions);
+  const hasActionValues = Array.isArray(row.action_values);
   return {
-    spend: metrics.spend === null ? "null_from_source" : metrics.spend === 0 ? "actual_zero" : "available",
-    impressions: metrics.impressions === null ? "null_from_source" : metrics.impressions === 0 ? "actual_zero" : "available",
-    reach: metrics.reach === null ? "null_from_source" : metrics.reach === 0 ? "actual_zero" : "available",
-    clicks: metrics.clicks === null ? "null_from_source" : metrics.clicks === 0 ? "actual_zero" : "available",
-    linkClicks: metrics.linkClicks === null ? "null_from_source" : metrics.linkClicks === 0 ? "actual_zero" : "available",
-    outboundClicks: metrics.outboundClicks === null ? "null_from_source" : metrics.outboundClicks === 0 ? "actual_zero" : "available",
-    conversions: row.actions ? (metrics.conversions === null ? "unavailable" : metrics.conversions === 0 ? "actual_zero" : "available") : "null_from_source",
-    conversionValue: row.action_values ? (metrics.conversionValue === null ? "unavailable" : metrics.conversionValue === 0 ? "actual_zero" : "available") : "null_from_source"
+    spend: availabilityForMetric(metrics.spend, row.spend !== undefined),
+    impressions: availabilityForMetric(metrics.impressions, row.impressions !== undefined),
+    reach: availabilityForMetric(metrics.reach, row.reach !== undefined),
+    frequency: availabilityForMetric(metrics.frequency, row.frequency !== undefined),
+    clicks: availabilityForMetric(metrics.clicks, row.clicks !== undefined),
+    linkClicks: availabilityForMetric(metrics.linkClicks, row.inline_link_clicks !== undefined),
+    outboundClicks: availabilityForMetric(metrics.outboundClicks, row.outbound_clicks !== undefined),
+    ctr: availabilityForMetric(metrics.ctr, row.ctr !== undefined),
+    cpc: availabilityForMetric(metrics.cpc, row.cpc !== undefined),
+    cpm: availabilityForMetric(metrics.cpm, row.cpm !== undefined),
+    conversions: hasActions ? (metrics.conversions === null ? "unavailable" : metrics.conversions === 0 ? "actual_zero" : "available") : "null_from_source",
+    conversionValue: hasActionValues
+      ? metrics.conversionValue === null
+        ? "unavailable"
+        : metrics.conversionValue === 0
+          ? "actual_zero"
+          : "available"
+      : "null_from_source"
   };
 }
 
@@ -134,16 +213,43 @@ function entityNameFor(row: GraphInsightRow, level: MetaEntityLevel) {
 }
 
 function insightRowToMeta(row: GraphInsightRow, query: MetaInsightsQuery, account?: MetaAdAccount): MetaInsightRow {
+  const actionMetrics = normalizeActionMetrics(row.actions);
   const metrics: MetaMetrics = {
     spend: parseNumber(row.spend),
     impressions: parseNumber(row.impressions),
     reach: parseNumber(row.reach),
+    frequency: parseNumber(row.frequency),
     clicks: parseNumber(row.clicks),
+    ctr: parseNumber(row.ctr),
+    cpc: parseNumber(row.cpc),
+    cpm: parseNumber(row.cpm),
     linkClicks: parseNumber(row.inline_link_clicks),
     outboundClicks: sumOutboundClicks(row.outbound_clicks),
     conversions: sumActions(row.actions),
-    conversionValue: sumActions(row.action_values)
+    conversionValue: sumActions(row.action_values),
+    videoMetrics: extractVideoMetrics(row),
+    engagementMetrics: {},
+    actionMetrics
   };
+
+  // Preserve landing_page_views without promoting it to a core conversion.
+  const landingRaw = row.landing_page_views as string | number | GraphActionMetric[] | undefined;
+  const landingPageViews = Array.isArray(landingRaw)
+    ? landingRaw.reduce((sum, item) => sum + (parseNumber((item as { value?: string }).value) ?? 0), 0)
+    : parseNumber(landingRaw as string | number | null | undefined);
+  if (landingPageViews !== null || row.landing_page_views !== undefined) {
+    metrics.engagementMetrics = { ...(metrics.engagementMetrics ?? {}), landing_page_views: landingPageViews };
+  }
+
+  const isHourly = query.timeIncrement === "hourly";
+  const availability = availabilityFor(row, metrics);
+  if (isHourly) {
+    // Meta hourly breakdowns do not support reach/frequency; never present zeros as truth.
+    if (availability.reach === "actual_zero" || availability.reach === "available") availability.reach = "unsupported";
+    if (availability.frequency === "actual_zero" || availability.frequency === "available") availability.frequency = "unsupported";
+    metrics.reach = null;
+    metrics.frequency = null;
+  }
 
   return {
     ...metrics,
@@ -160,7 +266,7 @@ function insightRowToMeta(row: GraphInsightRow, query: MetaInsightsQuery, accoun
       actionAttributionWindows: ["default"],
       source: "meta_graph_api"
     },
-    availability: availabilityFor(row, metrics)
+    availability
   };
 }
 
@@ -179,6 +285,69 @@ export class GraphApiMetaAdsProvider implements MetaAdsProvider {
 
   constructor(options: GraphApiMetaAdsProviderOptions) {
     this.client = new GraphApiHttpClient(options);
+  }
+
+  async getCurrentUser(): Promise<MetaCurrentUser> {
+    const me = await this.client.getObject<{ id: string; name?: string }>("/me", { fields: "id,name" });
+    return { id: me.id, name: me.name ?? me.id };
+  }
+
+  async getAdAccount(accountId: string): Promise<MetaAdAccount | null> {
+    try {
+      return await this.lookupAccount(accountId);
+    } catch (error) {
+      if (error instanceof MetaApiError && error.kind === "not_found") return null;
+      throw error;
+    }
+  }
+
+  async getAd(accountId: string, adId: string): Promise<MetaAd | null> {
+    try {
+      const ad = await this.client.getObject<GraphAd>(`/${adId}`, { fields: AD_FIELDS });
+      const mappedAccountId = ad.account_id ? `act_${ad.account_id.replace(/^act_/, "")}` : accountId;
+      if (mappedAccountId !== accountId) return null;
+      return {
+        id: ad.id ?? adId,
+        accountId,
+        campaignId: ad.campaign_id ?? "unknown_campaign",
+        adSetId: ad.adset_id ?? "unknown_adset",
+        creativeId: ad.creative?.id ?? "unknown_creative",
+        name: ad.name ?? adId,
+        status: ad.status ?? "UNKNOWN",
+        effectiveStatus: ad.effective_status ?? ad.status ?? "UNKNOWN"
+      };
+    } catch (error) {
+      if (error instanceof MetaApiError && error.kind === "not_found") return null;
+      throw error;
+    }
+  }
+
+  async getAvailableBreakdowns(level?: MetaEntityLevel): Promise<MetaBreakdownCapabilityInfo[]> {
+    return breakdownCapabilities
+      .filter((capability) => !level || capability.supportedLevels.includes(level))
+      .map((capability) => ({
+        key: capability.key,
+        label: capability.label,
+        dimensions: capability.dimensions,
+        supported: capability.supported,
+        supportedLevels: capability.supportedLevels,
+        notes: capability.notes
+      }));
+  }
+
+  async healthCheck(): Promise<MetaConnectionHealth> {
+    const checkedAt = new Date().toISOString();
+    try {
+      const user = await this.getCurrentUser();
+      const page = await this.client.getPage<GraphAdAccount>("/me/adaccounts", { fields: "id", limit: 1 });
+      return { status: "connected", user, adAccountCount: (page.data ?? []).length, checkedAt };
+    } catch (error) {
+      if (error instanceof MetaApiError) {
+        if (error.kind === "authentication") return { status: "authentication_failed", checkedAt };
+        if (error.kind === "permission") return { status: "permission_denied", checkedAt };
+      }
+      return { status: "api_error", checkedAt };
+    }
   }
 
   async listAdAccounts(paging?: MetaPaging): Promise<MetaPage<MetaAdAccount>> {
@@ -275,8 +444,8 @@ export class GraphApiMetaAdsProvider implements MetaAdsProvider {
     const page = await this.client.getPage<GraphInsightRow>(`/${query.accountId}/insights`, {
       fields: INSIGHT_FIELDS,
       level: query.level,
-      time_range: JSON.stringify({ since: query.dateRange.since, until: query.dateRange.until }),
-      time_increment: query.timeIncrement === 1 ? 1 : undefined,
+      ...(query.datePreset ? { date_preset: query.datePreset } : { time_range: JSON.stringify({ since: query.dateRange.since, until: query.dateRange.until }) }),
+      time_increment: query.timeIncrement === 1 || query.timeIncrement === "hourly" ? 1 : undefined,
       filtering: query.entityIds ? JSON.stringify(this.entityFilters(query.level, query.entityIds)) : undefined,
       ...cursorPaging(query)
     });
@@ -284,22 +453,53 @@ export class GraphApiMetaAdsProvider implements MetaAdsProvider {
   }
 
   async getBreakdowns(query: MetaBreakdownQuery): Promise<MetaPage<MetaBreakdownRow>> {
+    const rawKey = query.breakdowns.join(",");
+    const sortedKey = [...query.breakdowns].sort().join(",");
+    let validation = validateBreakdownRequest(rawKey, query.level);
+    if (!validation.supported) {
+      const sortedValidation = validateBreakdownRequest(sortedKey, query.level);
+      if (sortedValidation.supported) validation = sortedValidation;
+    }
+    // Order-insensitive fallback for known multi-dimension combos (e.g. platform_position,publisher_platform).
+    if (!validation.supported) {
+      const match = breakdownCapabilities.find((capability) => {
+        if (!capability.supportedLevels.includes(query.level)) return false;
+        const a = [...capability.dimensions].sort().join(",");
+        return a === sortedKey;
+      });
+      if (match) validation = { supported: true, capability: match };
+    }
+    if (!validation.supported) {
+      throw new MetaApiError(validation.reason ?? "Requested breakdown combination is unsupported.", "unsupported_breakdown", "unsupported_breakdown", false, {
+        breakdowns: query.breakdowns,
+        level: query.level
+      });
+    }
     const insightPage = await this.client.getPage<GraphInsightRow>(`/${query.accountId}/insights`, {
       fields: INSIGHT_FIELDS,
       level: query.level,
       breakdowns: query.breakdowns.join(","),
-      time_range: JSON.stringify({ since: query.dateRange.since, until: query.dateRange.until }),
-      time_increment: query.timeIncrement === 1 ? 1 : undefined,
+      ...(query.datePreset ? { date_preset: query.datePreset } : { time_range: JSON.stringify({ since: query.dateRange.since, until: query.dateRange.until }) }),
+      time_increment: query.timeIncrement === 1 || query.timeIncrement === "hourly" ? 1 : undefined,
       filtering: query.entityIds ? JSON.stringify(this.entityFilters(query.level, query.entityIds)) : undefined,
       ...cursorPaging(query)
     });
     const account = this.accountCache.get(query.accountId) ?? (await this.lookupAccount(query.accountId));
+    const isHourlyBreakdown = query.breakdowns.some((item) => item.startsWith("hourly_stats"));
     return toMetaPage(
-      (insightPage.data ?? []).map((row) => ({
-        ...insightRowToMeta(row, query, account),
-        breakdownKey: query.breakdowns.join(","),
-        breakdownValues: Object.fromEntries(query.breakdowns.map((breakdown) => [breakdown, String(row[breakdown] ?? "unknown")]))
-      })),
+      (insightPage.data ?? []).map((row) => {
+        const base = insightRowToMeta({ ...row, ...(isHourlyBreakdown ? {} : {}) }, { ...query, timeIncrement: isHourlyBreakdown ? "hourly" : query.timeIncrement }, account);
+        if (isHourlyBreakdown) {
+          base.reach = null;
+          base.frequency = null;
+          base.availability = { ...base.availability, reach: "unsupported", frequency: "unsupported" };
+        }
+        return {
+          ...base,
+          breakdownKey: query.breakdowns.join(","),
+          breakdownValues: Object.fromEntries(query.breakdowns.map((breakdown) => [breakdown, String(row[breakdown] ?? "unknown")]))
+        };
+      }),
       insightPage.paging
     );
   }

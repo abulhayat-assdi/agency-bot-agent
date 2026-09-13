@@ -1,19 +1,71 @@
 type LogLevel = "debug" | "info" | "warn" | "error";
 
-type LogContext = Record<string, string | number | boolean | null | undefined>;
+type LogValue = string | number | boolean | null | undefined;
+type LogContext = Record<string, LogValue | LogValue[] | Record<string, unknown>>;
 
-const REDACTED_KEYS = new Set(["token", "accessToken", "password", "secret", "apiKey", "authorization"]);
+const SENSITIVE_KEY_PARTS = [
+  "access_token",
+  "accesstoken",
+  "app_secret",
+  "appsecret",
+  "authorization",
+  "api_key",
+  "apikey",
+  "password",
+  "secret",
+  "token"
+];
+
+function isSensitiveKey(key: string) {
+  const normalized = key.toLowerCase().replace(/[^a-z]/g, "");
+  return SENSITIVE_KEY_PARTS.some((part) => normalized.includes(part.replace(/[^a-z]/g, "")));
+}
+
+function sanitizeValue(value: unknown): unknown {
+  if (typeof value === "string") return sanitizeUrlString(value);
+  if (Array.isArray(value)) return value.map((item) => sanitizeValue(item));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, isSensitiveKey(key) ? "[redacted]" : sanitizeValue(entry)]));
+  }
+  return value;
+}
+
+function sanitizeUrlString(value: string) {
+  if (!value.includes("access_token") && !value.includes("appsecret_proof") && !value.includes("secret")) return value;
+  try {
+    // Handle full URLs that may embed secrets as query params.
+    if (/^https?:\/\//i.test(value)) {
+      const url = new URL(value);
+      for (const key of [...url.searchParams.keys()]) {
+        if (isSensitiveKey(key)) url.searchParams.set(key, "[redacted]");
+      }
+      return url.toString();
+    }
+  } catch {
+    // Fall through to regex redaction.
+  }
+  return value
+    .replace(/(access_token=)[^&\s"']+/gi, "$1[redacted]")
+    .replace(/(appsecret_proof=)[^&\s"']+/gi, "$1[redacted]")
+    .replace(/("access_token"\s*:\s*")[^"]+(")/gi, "$1[redacted]$2");
+}
 
 function sanitize(context: LogContext = {}) {
-  return Object.fromEntries(
-    Object.entries(context).map(([key, value]) => [key, REDACTED_KEYS.has(key) ? "[redacted]" : value])
-  );
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(context)) {
+    result[key] = isSensitiveKey(key) ? "[redacted]" : sanitizeValue(value);
+  }
+  return result;
+}
+
+export function sanitizeLogUrl(url: string) {
+  return sanitizeUrlString(url);
 }
 
 function write(level: LogLevel, message: string, context?: LogContext) {
   const payload = {
     level,
-    message,
+    message: sanitizeUrlString(message),
     time: new Date().toISOString(),
     ...sanitize(context)
   };
