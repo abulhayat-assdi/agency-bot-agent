@@ -22,12 +22,41 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
 
   worker:
     build:
       context: .
     command: npm run start:worker
+    environment:
+      APP_ENV: production
+      APP_URL: http://localhost:3000
+      APP_NAME: AI Meta Ads Intelligence Platform
+      SESSION_SECRET: replace-with-a-long-random-secret-at-runtime
+      ADMIN_BOOTSTRAP_EMAIL: admin@example.com
+      ADMIN_BOOTSTRAP_PASSWORD_HASH: replace-with-bcrypt-password-hash-at-runtime
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/meta_ads_intelligence
+      REDIS_URL: redis://redis:6379
+      META_PROVIDER: mock
+      META_GRAPH_API_VERSION: v26.0
+      EMAIL_PROVIDER: mock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: .
+    command: npm run start:scheduler
     environment:
       APP_ENV: production
       APP_URL: http://localhost:3000

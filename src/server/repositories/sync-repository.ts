@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import {
   dataAvailability,
@@ -78,7 +78,8 @@ export class SyncRepository {
     return run;
   }
 
-  latestRuns(adAccountId: string | null, limit = 10) {    if (!adAccountId) {
+  latestRuns(adAccountId: string | null, limit = 10) {
+    if (!adAccountId) {
       return this.context.db.query.syncRuns.findMany({
         orderBy: [desc(syncRuns.createdAt)],
         limit
@@ -99,6 +100,32 @@ export class SyncRepository {
   errorsForRun(syncRunId: string) {
     return this.context.db.query.syncErrors.findMany({
       where: eq(syncErrors.syncRunId, syncRunId)
+    });
+  }
+
+  /** Runs that are still in flight (used by the scheduler for duplicate suppression). */
+  findActiveRuns(limit = 200) {
+    return this.context.db.query.syncRuns.findMany({
+      where: inArray(syncRuns.status, ["queued", "running", "partial"]),
+      orderBy: [desc(syncRuns.createdAt)],
+      limit
+    });
+  }
+
+  /** Candidate stale runs: status still "running". Age filtering happens in JS via isRunStale. */
+  findRunning(limit = 200) {
+    return this.context.db.query.syncRuns.findMany({
+      where: eq(syncRuns.status, "running"),
+      orderBy: [desc(syncRuns.createdAt)],
+      limit
+    });
+  }
+
+  findActiveRunsForAccount(adAccountId: string) {
+    return this.context.db.query.syncRuns.findMany({
+      where: and(eq(syncRuns.adAccountId, adAccountId), inArray(syncRuns.status, ["queued", "running", "partial"])),
+      orderBy: [desc(syncRuns.createdAt)],
+      limit: 50
     });
   }
 

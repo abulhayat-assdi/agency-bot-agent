@@ -1,4 +1,7 @@
 import { createSyncWorker, getSyncQueueReadiness } from "@/server/jobs";
+import { closeDatabaseConnection } from "@/server/db/client";
+import { closeRedisConnection } from "@/server/jobs/redis";
+import { createShutdownCoordinator } from "@/server/process/shutdown";
 import { logger } from "@/server/observability/logger";
 
 const readiness = getSyncQueueReadiness();
@@ -39,11 +42,8 @@ logger.info("Sync worker started", {
   attempts: readiness.defaultAttempts
 });
 
-const shutdown = async (signal: string) => {
-  logger.info("Stopping sync worker", { signal, queue: readiness.queueName });
-  await worker.close();
-  process.exit(0);
-};
-
-process.on("SIGINT", () => void shutdown("SIGINT"));
-process.on("SIGTERM", () => void shutdown("SIGTERM"));
+const shutdown = createShutdownCoordinator();
+shutdown.install();
+shutdown.register("worker", () => worker.close());
+shutdown.register("database", () => closeDatabaseConnection());
+shutdown.register("redis", () => closeRedisConnection());

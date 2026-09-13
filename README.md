@@ -48,7 +48,7 @@ Milestone 0 established the repository baseline, current environment findings, v
 
 ## Local environment
 
-Milestone 1 uses npm with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style primitives, ESLint, Prettier, and Vitest. Use `npm run dev`, `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build` for local validation. Database commands are `npm run db:generate`, `npm run db:migrate`, `npm run db:studio`, and `npm run db:seed`. Job commands are `npm run jobs:schedule-sync` and `npm run jobs:worker`; they require `REDIS_URL`. Deployment readiness can be checked with `npm run deploy:check`; Docker/Coolify details are in `docs/DEPLOYMENT.md`.
+Milestone 1 uses npm with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style primitives, ESLint, Prettier, and Vitest. Use `npm run dev`, `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build` for local validation. Database commands are `npm run db:generate`, `npm run db:migrate`, `npm run db:studio`, and `npm run db:seed`. Job commands are `npm run jobs:scheduler` (long-running incremental loop), `npm run jobs:schedule-sync` (one-shot schedule registration), and `npm run jobs:worker`; they require `REDIS_URL` (and `DATABASE_URL` for the scheduler). Deployment readiness can be checked with `npm run deploy:check`; Docker/Coolify details are in `docs/DEPLOYMENT.md`.
 
 ## Meta integration (read-only Phase 1)
 

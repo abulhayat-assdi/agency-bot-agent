@@ -19,9 +19,11 @@
     "auth:hash-password": "tsx scripts/hash-password.ts",
     "jobs:worker": "tsx scripts/sync-worker.ts",
     "jobs:schedule-sync": "tsx scripts/schedule-sync.ts",
+    "jobs:scheduler": "tsx scripts/scheduler.ts",
     "meta:live-smoke": "tsx scripts/meta-live-smoke.ts",
     "start:web": "next start --hostname 0.0.0.0",
     "start:worker": "tsx scripts/sync-worker.ts",
+    "start:scheduler": "tsx scripts/scheduler.ts",
     "deploy:migrate": "drizzle-kit migrate",
     "deploy:check": "tsx scripts/verify-deployment-readiness.ts"
   },

@@ -11,6 +11,8 @@ type RunView = {
   status: string;
   type: string;
   adAccountId: string | null;
+  stale: boolean;
+  staleRemediation: string | null;
   checkpoint: {
     metaAccountId?: string;
     syncKind?: string;
@@ -260,6 +262,11 @@ export function SyncOperationsPanel({
                   {run.durationMs !== null && run.durationMs !== undefined && ` · ${(run.durationMs / 1000).toFixed(1)}s`}
                 </div>
                 {run.errorSummary && <div className="text-red-300">{run.errorSummary}</div>}
+                {run.stale && (
+                  <div className="text-amber-200">
+                    Stale: active beyond the expected window. {run.staleRemediation ?? "Check worker logs and Redis connectivity."}
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="secondary" onClick={() => inspect(run.runId)} disabled={busy !== null}>

@@ -39,6 +39,8 @@ COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 USER nextjs
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# NOTE: no image-level HEALTHCHECK on purpose — the same image runs web, worker,
+# and scheduler with different commands, and only web serves :3000. Healthchecks
+# live on the web service (docker-compose.yml) and in Coolify service settings.
 
 CMD ["npm", "run", "start:web"]

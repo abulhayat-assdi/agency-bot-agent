@@ -58,6 +58,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
       <FilterBar preset={filters.preset} clientId={filters.clientId} accountId={filters.accountId} clients={data.clients} accounts={data.accounts} />
 
+      {data.source !== "persisted" && (
+        <Card>
+          <CardContent className="flex items-start gap-3 p-4 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
+            <div>
+              <p className="font-medium">No synchronized data yet — showing clearly labeled demo data.</p>
+              <p className="text-muted-foreground">
+                Connect an ad account and run a sync from Settings → Meta integration (or Sync operations) to replace these demo numbers with persisted
+                Meta results. Production never presents demo numbers as real metrics.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Total clients" value={String(data.totals.clients)} helper="Client registry" accent="purple" />
         <KpiCard label="Connected accounts" value={`${data.totals.connectedAccounts}`} helper={`${data.totals.selectedAccounts} selected`} accent="green" />

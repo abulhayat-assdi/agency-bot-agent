@@ -16,6 +16,7 @@ import {
   type SyncKind
 } from "@/server/sync/chunks";
 import { ensureDefaultScope } from "@/server/sync/meta-persistence";
+import { isRunStale, staleRunRemediation } from "@/server/sync/run-health";
 
 export class ApiError extends Error {
   constructor(
@@ -120,18 +121,21 @@ export function runProgressView(run: {
   finishedAt: Date | string | null;
   createdAt: Date | string;
   errorSummary: string | null;
-}) {
+}, now: Date = new Date()) {
   const checkpoint = (run.checkpoint ?? {}) as Partial<ChunkCheckpoint>;
   const chunks = Array.isArray(checkpoint.chunks) ? checkpoint.chunks.length : 0;
   const completed = Array.isArray(checkpoint.completedChunks) ? checkpoint.completedChunks.length : 0;
   const failed = Array.isArray(checkpoint.failedChunks) ? checkpoint.failedChunks : [];
   const started = run.startedAt ? new Date(run.startedAt).toISOString() : null;
   const finished = run.finishedAt ? new Date(run.finishedAt).toISOString() : null;
+  const stale = isRunStale({ status: run.status, startedAt: run.startedAt, createdAt: run.createdAt }, now);
   return {
     runId: run.id,
     status: run.status,
     type: run.type,
     adAccountId: run.adAccountId,
+    stale,
+    staleRemediation: stale ? staleRunRemediation() : null,
     checkpoint: checkpoint.metaAccountId
       ? {
           metaAccountId: checkpoint.metaAccountId,
