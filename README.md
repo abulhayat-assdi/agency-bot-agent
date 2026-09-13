@@ -64,6 +64,13 @@ Milestone 1 uses npm with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style pri
 - Dashboard, trends, breakdowns, deep reports, and AI analyst tools read persisted PostgreSQL rows first and fall back to deterministic mock data only when an account has never synced. Set `ANALYTICS_SOURCE=mock` to force mock reads (used for deterministic tests).
 - Source metrics are stored exactly (numerics as decimal strings, counts as integers, missing stays null); CTR/CPC/CPM/frequency/ROAS are derived at read time by the deterministic engine. Meta-returned derived values are kept in `sourceFields` for provenance only.
 
+## Production sync engine (BullMQ backfill)
+
+- Queue `meta-sync` runs real persisted syncs: `POST /api/meta/sync` enqueues a chunked manual sync when Redis is configured (`inline: true` forces inline for small/dev syncs).
+- `POST /api/meta/backfill` plans `BACKFILL_CHUNK_DAYS`-day chunks (default 7, cap `BACKFILL_MAX_DAYS=400`) and resumes by skipping completed chunks (`resumeRunId` supported).
+- Workers persist per chunk via `runPersistedSync`, track checkpoints in `sync_runs.checkpoint`, fail permanent Meta errors fast (`UnrecoverableError`), and retry rate-limit/transient/network errors with bounded backoff plus adaptive pacing (`META_SYNC_CONCURRENCY=2`).
+- Operations: `GET /api/meta/runs`, `GET /api/meta/runs/[runId]`, `POST /api/meta/sync/[runId]/cancel`, `GET /api/meta/accounts/status`, and the Sync operations page (start/refresh/inspect/cancel). Initial sync covers `META_INITIAL_SYNC_DAYS=30`; the schedule uses `META_INCREMENTAL_LOOKBACK_DAYS=3`.
+
 ## Security
 
 Never commit real `.env` files or secrets. Use `.env.example` placeholders only.

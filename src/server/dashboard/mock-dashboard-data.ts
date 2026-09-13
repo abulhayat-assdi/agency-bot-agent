@@ -57,13 +57,17 @@ export type TrendPoint = {
   conversions: number;
 };
 
+export type DashboardDataSource = "persisted" | "mock";
+
 export type DashboardData = {
   generatedAt: string;
+  source: DashboardDataSource;
   range: ReportingDateRange;
   previousRange: ReportingDateRange;
   clients: DashboardClient[];
   accounts: MetaAdAccount[];
   selectedAccounts: MetaAdAccount[];
+  unsyncedAccounts: MetaAdAccount[];
   accountSummaries: AccountSummary[];
   deliveryMetrics: AnalyticsMetricSet;
   currencySummaries: CurrencySummary[];
@@ -161,23 +165,33 @@ async function fetchAllPages<T>(fetchPage: (after?: string) => Promise<{ data: T
   return rows;
 }
 
-async function getRowsForRange(accountId: string, range: ReportingDateRange, level: "account" | "campaign") {
+type SourcedRows = { rows: MetaInsightRow[]; source: DashboardDataSource };
+
+async function getRowsForRange(
+  accountId: string,
+  range: ReportingDateRange,
+  level: "account" | "campaign",
+  persistedOnly: boolean
+): Promise<SourcedRows> {
   const db = getAnalyticsDb();
   if (db) {
     try {
       const context = await findPersistedAccount(db, accountId);
       if (context) {
         const rows = await fetchPersistedInsightRows(db, { accountDbId: context.dbRowId, account: context.account, level, range });
-        if (rows) return rows;
+        if (rows) return { rows, source: "persisted" };
+        // A synced account reads persisted data only: empty stays empty, never mock-filled.
+        if (persistedOnly) return { rows: [], source: "persisted" };
       }
     } catch {
       // Persisted reads are best-effort; fall back to the mock provider below.
     }
   }
   const provider = createMockMetaAdsProvider();
-  return fetchAllPages<MetaInsightRow>((after) =>
+  const rows = await fetchAllPages<MetaInsightRow>((after) =>
     provider.getInsights({ accountId, level, dateRange: range, limit: 100, after })
   );
+  return { rows, source: "mock" };
 }
 
 function aggregateRows(rows: MetaInsightRow[]) {
@@ -231,16 +245,27 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
     : accounts;
   const selectedAccounts = filters.accountId ? filteredByClient.filter((account) => account.id === filters.accountId) : filteredByClient;
   const effectiveAccounts = selectedAccounts.length > 0 ? selectedAccounts : filteredByClient;
-  const range = resolveDatePreset(filters.preset, getPrimaryTimezone(effectiveAccounts), new Date("2026-09-10T12:00:00.000Z"));
+  // An account counts as persisted once it has completed a real sync; only
+  // those accounts read PostgreSQL, and mock data is never mixed into them.
+  const isPersistedAccount = (accountId: string) => Boolean(persistedById?.get(accountId)?.lastSyncAt);
+  const hasPersistedSelection = effectiveAccounts.some((account) => isPersistedAccount(account.id));
+  const referenceNow = hasPersistedSelection ? new Date() : new Date("2026-09-10T12:00:00.000Z");
+  const displayAccounts = hasPersistedSelection ? effectiveAccounts.filter((account) => isPersistedAccount(account.id)) : effectiveAccounts;
+  const unsyncedAccounts = hasPersistedSelection ? effectiveAccounts.filter((account) => !isPersistedAccount(account.id)) : [];
+  const source: DashboardDataSource = hasPersistedSelection ? "persisted" : "mock";
+  const range = resolveDatePreset(filters.preset, getPrimaryTimezone(displayAccounts.length > 0 ? displayAccounts : effectiveAccounts), referenceNow);
   const previousRange = previousEquivalentPeriod(range);
 
   const rowsByAccount = await Promise.all(
-    effectiveAccounts.map(async (account) => ({
-      account,
-      rows: await getRowsForRange(account.id, range, "account"),
-      previousRows: await getRowsForRange(account.id, previousRange, "account"),
-      campaignRows: await getRowsForRange(account.id, range, "campaign")
-    }))
+    displayAccounts.map(async (account) => {
+      const persistedOnly = isPersistedAccount(account.id);
+      const [rows, previousRows, campaignRows] = await Promise.all([
+        getRowsForRange(account.id, range, "account", persistedOnly),
+        getRowsForRange(account.id, previousRange, "account", persistedOnly),
+        getRowsForRange(account.id, range, "campaign", persistedOnly)
+      ]);
+      return { account, rows: rows.rows, previousRows: previousRows.rows, campaignRows: campaignRows.rows };
+    })
   );
 
   const accountSummaries = rowsByAccount.map(({ account, rows, previousRows }) => ({
@@ -273,27 +298,34 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
   );
 
   const allRows = rowsByAccount.flatMap((item) => item.rows);
-  const currencies = new Set(effectiveAccounts.map((account) => account.currency));
-  const usingPersisted = persistedById && effectiveAccounts.some((account) => persistedById.has(account.id));
+  const currencies = new Set(displayAccounts.map((account) => account.currency));
   const caveats = [
-    usingPersisted
+    source === "persisted"
       ? "Reporting reads persisted Meta data from PostgreSQL; the database is the source of truth."
       : "No persisted Meta data was found, so this view uses deterministic mock Meta data; connect and sync an account for real reporting.",
     "Financial KPIs are grouped by currency and are never silently mixed.",
     "Unavailable metrics are shown as unavailable/null and are not converted to zero."
   ];
 
+  if (unsyncedAccounts.length > 0) {
+    caveats.push(
+      `Excluded ${unsyncedAccounts.length} never-synced account(s) (${unsyncedAccounts.map((account) => account.name).join(", ")}) so mock values are never mixed with persisted results.`
+    );
+  }
+
   if (currencies.size > 1) {
     caveats.push("Multiple currencies are selected, so ROAS and spend/value summaries are shown per currency.");
   }
 
   return {
-    generatedAt: new Date("2026-09-10T12:00:00.000Z").toISOString(),
+    generatedAt: referenceNow.toISOString(),
+    source,
     range,
     previousRange,
     clients: persisted?.clients ?? dashboardClients,
     accounts,
-    selectedAccounts: effectiveAccounts,
+    selectedAccounts: displayAccounts,
+    unsyncedAccounts,
     accountSummaries,
     deliveryMetrics,
     currencySummaries,
@@ -302,7 +334,7 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
     totals: {
       clients: (persisted?.clients ?? dashboardClients).length,
       connectedAccounts: accounts.filter((account) => account.accessStatus === "connected").length,
-      selectedAccounts: effectiveAccounts.length
+      selectedAccounts: displayAccounts.length
     },
     caveats
   };

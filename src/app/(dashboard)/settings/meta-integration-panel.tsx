@@ -23,11 +23,22 @@ type Health = {
   error?: string;
 };
 
+type Freshness = {
+  metaAccountId: string;
+  connected: boolean;
+  lastSuccessfulSync: string | null;
+  lastAttemptedSync: string | null;
+  lastSyncStatus: string | null;
+  dataThroughDate: string | null;
+  errorState: { category: string; safeMessage: string; remediation: string } | null;
+};
+
 export function MetaIntegrationPanel() {
   const [health, setHealth] = useState<Health | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [freshness, setFreshness] = useState<Record<string, Freshness>>({});
   const [syncResult, setSyncResult] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"idle" | "health" | "discover" | "sync">("idle");
+  const [busy, setBusy] = useState<"idle" | "health" | "discover" | "sync" | "freshness">("idle");
   const [error, setError] = useState<string | null>(null);
 
   async function testConnection() {
@@ -53,6 +64,7 @@ export function MetaIntegrationPanel() {
       const body = await response.json();
       if (!body.ok) throw new Error(body.error ?? "Account discovery failed.");
       setAccounts(body.accounts ?? []);
+      await loadFreshness();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Account discovery failed.");
     } finally {
@@ -72,11 +84,34 @@ export function MetaIntegrationPanel() {
       });
       const body = await response.json();
       if (!body.ok) throw new Error(body.error ?? "Account sync failed.");
-      setSyncResult(`Sync ${body.status} for ${body.account?.name ?? accountId}. Stages: ${body.stages?.length ?? 0}.`);
+      setSyncResult(
+        body.queued
+          ? `Sync queued for ${body.account?.name ?? accountId} (run ${body.runId}, ${body.totalChunks ?? 0} chunks). Track it under Sync operations.`
+          : `Sync ${body.status} for ${body.account?.name ?? accountId}. Stages: ${body.stages?.length ?? 0}.`
+      );
+      await loadFreshness();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Account sync failed.");
     } finally {
       setBusy("idle");
+    }
+  }
+
+  async function loadFreshness() {
+    setBusy("freshness");
+    try {
+      const response = await fetch("/api/meta/accounts/status", { cache: "no-store" });
+      const body = await response.json();
+      if (!body.ok) return;
+      const map: Record<string, Freshness> = {};
+      for (const entry of body.accounts ?? []) {
+        map[entry.metaAccountId] = entry;
+      }
+      setFreshness(map);
+    } catch {
+      // Freshness is best-effort; the connection panel works without it.
+    } finally {
+      setBusy((current) => (current === "freshness" ? "idle" : current));
     }
   }
 
@@ -108,19 +143,31 @@ export function MetaIntegrationPanel() {
 
         {accounts.length > 0 && (
           <ul className="grid gap-2">
-            {accounts.map((account) => (
-              <li key={account.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm">
-                <div>
-                  <div className="font-medium">{account.name}</div>
-                  <div className="text-muted-foreground">
-                    {account.id} · {account.currency} · {account.timezone} · {account.accessStatus}
+            {accounts.map((account) => {
+              const state = freshness[account.id];
+              return (
+                <li key={account.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm">
+                  <div>
+                    <div className="font-medium">{account.name}</div>
+                    <div className="text-muted-foreground">
+                      {account.id} · {account.currency} · {account.timezone} · {account.accessStatus}
+                    </div>
+                    {state && (
+                      <div className="text-muted-foreground">
+                        Last sync: {state.lastSuccessfulSync ? `${state.lastSuccessfulSync.slice(0, 10)} (${state.lastSyncStatus})` : "never"}
+                        {" · "}Data through: {state.dataThroughDate ?? "—"}
+                        {state.errorState && (
+                          <span className="text-red-300"> · {state.errorState.category}: {state.errorState.remediation}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-                <Button size="sm" variant="secondary" onClick={() => syncAccount(account.id)} disabled={busy !== "idle"}>
-                  {busy === "sync" ? "Syncing…" : "Sync Account"}
-                </Button>
-              </li>
-            ))}
+                  <Button size="sm" variant="secondary" onClick={() => syncAccount(account.id)} disabled={busy !== "idle"}>
+                    {busy === "sync" ? "Syncing…" : "Sync Account"}
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
         )}
 

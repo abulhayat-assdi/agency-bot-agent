@@ -45,7 +45,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant="success">Read-only</Badge>
-          <Badge variant="secondary">Last sync 2026-09-10 11:45 UTC</Badge>
+          <Badge variant="secondary">{data.source === "persisted" ? "Persisted data" : "Demo data"}</Badge>
+          <Badge variant="secondary">
+            {(() => {
+              const stamps = data.accountSummaries.map((summary) => summary.lastSyncAt).filter(Boolean).sort();
+              const latest = stamps[stamps.length - 1];
+              return latest ? `Last sync ${latest.slice(0, 16).replace("T", " ")} UTC` : "Never synced";
+            })()}
+          </Badge>
         </div>
       </section>
 
@@ -195,13 +202,25 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             <CardDescription>Sync state for selected accounts.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
+            {data.accountSummaries.length === 0 && (
+              <p className="text-sm text-muted-foreground">No data for this selection yet. Sync an account to populate persisted reporting.</p>
+            )}
             {data.accountSummaries.map((summary) => (
               <div key={summary.account.id} className="flex items-center justify-between gap-3 rounded-2xl bg-card/70 dark:bg-white/[0.03] p-3 text-sm">
                 <div>
                   <p className="font-medium">{summary.account.name}</p>
                   <p className="text-xs text-muted-foreground">{summary.account.timezone} · {summary.account.currency}</p>
                 </div>
-                <Badge variant="success">fresh</Badge>
+                <Badge variant={summary.freshnessState === "fresh" ? "success" : "warning"}>{summary.freshnessState}</Badge>
+              </div>
+            ))}
+            {data.unsyncedAccounts.map((account) => (
+              <div key={account.id} className="flex items-center justify-between gap-3 rounded-2xl bg-card/70 dark:bg-white/[0.03] p-3 text-sm">
+                <div>
+                  <p className="font-medium">{account.name}</p>
+                  <p className="text-xs text-muted-foreground">Never synced — excluded from persisted totals. Sync it from Settings → Meta integration.</p>
+                </div>
+                <Badge variant="warning">unsynced</Badge>
               </div>
             ))}
           </CardContent>

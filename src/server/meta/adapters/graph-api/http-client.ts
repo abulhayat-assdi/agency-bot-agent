@@ -46,6 +46,16 @@ export function isUnsupportedBreakdownMessage(message?: string) {
   return normalized.includes("breakdown") && (normalized.includes("not supported") || normalized.includes("invalid") || normalized.includes("cannot be") || normalized.includes("unsupported"));
 }
 
+/** Honor Retry-After when Meta sends one (seconds or HTTP date); undefined otherwise. */
+export function parseRetryAfterMs(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
+  const date = Date.parse(value);
+  if (Number.isFinite(date)) return Math.max(0, date - Date.now());
+  return undefined;
+}
+
 function safePath(path: string) {
   return path.startsWith("/") ? path : `/${path}`;
 }
@@ -144,7 +154,8 @@ export class GraphApiHttpClient {
         path: safePath(path),
         fbtraceId: graphError?.fbtrace_id,
         subcode: graphError?.error_subcode,
-        userTitle: graphError?.error_user_title
+        userTitle: graphError?.error_user_title,
+        retryAfterMs: parseRetryAfterMs(response.headers.get("retry-after"))
       });
     }
 

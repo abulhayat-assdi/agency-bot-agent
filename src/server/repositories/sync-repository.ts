@@ -16,15 +16,15 @@ type AvailabilityInsert = typeof dataAvailability.$inferInsert;
 export class SyncRepository {
   constructor(private readonly context: RepositoryContext) {}
 
-  async startRun(input: Omit<NewSyncRun, "agencyId" | "provider" | "status"> & { provider?: NewSyncRun["provider"] }) {
+  async startRun(input: Omit<NewSyncRun, "agencyId" | "provider" | "status"> & { provider?: NewSyncRun["provider"] }, initialStatus: "queued" | "running" = "running") {
     const [run] = await this.context.db
       .insert(syncRuns)
       .values({
         ...input,
         agencyId: this.context.agencyId,
         provider: input.provider ?? "meta",
-        status: "running",
-        startedAt: new Date()
+        status: initialStatus,
+        startedAt: initialStatus === "running" ? new Date() : null
       })
       .returning();
     return run;
@@ -44,8 +44,41 @@ export class SyncRepository {
     return run;
   }
 
-  latestRuns(adAccountId: string | null, limit = 10) {
-    if (!adAccountId) {
+  findRun(id: string) {
+    return this.context.db.query.syncRuns.findFirst({
+      where: eq(syncRuns.id, id)
+    });
+  }
+
+  /** Cooperative cancellation / resume support: checkpoint + status updates without touching stats. */
+  async saveCheckpoint(id: string, checkpoint: Record<string, unknown>) {
+    const [run] = await this.context.db
+      .update(syncRuns)
+      .set({ checkpoint })
+      .where(eq(syncRuns.id, id))
+      .returning();
+    return run;
+  }
+
+  async markRunning(id: string) {
+    const [run] = await this.context.db
+      .update(syncRuns)
+      .set({ status: "running", startedAt: new Date() })
+      .where(eq(syncRuns.id, id))
+      .returning();
+    return run;
+  }
+
+  async markCancelled(id: string) {
+    const [run] = await this.context.db
+      .update(syncRuns)
+      .set({ status: "cancelled", finishedAt: new Date() })
+      .where(eq(syncRuns.id, id))
+      .returning();
+    return run;
+  }
+
+  latestRuns(adAccountId: string | null, limit = 10) {    if (!adAccountId) {
       return this.context.db.query.syncRuns.findMany({
         orderBy: [desc(syncRuns.createdAt)],
         limit

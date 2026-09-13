@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -5,8 +6,12 @@ import { createConfiguredMetaAdsProvider, getMetaProviderReadiness } from "@/ser
 import { toSafeUserMessage } from "@/server/meta/errors";
 import { applySecurityHeaders } from "@/server/security/headers";
 import { InMemoryApiRateLimiter, getClientIp, rateLimitHeaders } from "@/server/security/api-rate-limit";
+import { getAppConfig } from "@/server/config/env";
+import { enqueueBackfillPlanner } from "@/server/jobs/queues";
+import { checkpointSummary, pendingChunks } from "@/server/sync/chunks";
 import { syncAccount } from "@/server/sync/meta-sync";
 import { ensureDefaultScope, runPersistedSync } from "@/server/sync/meta-persistence";
+import { ApiError, createParentRun, resolveAccountContext } from "@/server/sync/run-service";
 import { getDatabase } from "@/server/db/client";
 import { logger } from "@/server/observability/logger";
 
@@ -18,7 +23,10 @@ const requestSchema = z.object({
   accountId: z.string().min(1).max(120),
   since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  includeBreakdowns: z.boolean().optional()
+  includeBreakdowns: z.boolean().optional(),
+  // When false (and the queue is configured), the sync is enqueued instead of
+  // running inside the request lifecycle. Defaults to queueing.
+  inline: z.boolean().optional()
 });
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
@@ -46,11 +54,62 @@ export async function POST(request: Request) {
   }
 
   const readiness = getMetaProviderReadiness();
+  const config = getAppConfig();
   const range = parsed.data.since && parsed.data.until ? { since: parsed.data.since, until: parsed.data.until } : defaultRange(7);
 
   try {
     const provider = createConfiguredMetaAdsProvider();
     const providerMode = readiness.provider === "graph-api" ? "graph_api" : "mock";
+
+    // Production path: enqueue a chunked manual sync so large ranges never
+    // block the HTTP request. Inline remains for small/dev syncs and tests.
+    if (config.REDIS_URL && parsed.data.inline !== true) {
+      const db = getDatabase();
+      const { agencyId } = await ensureDefaultScope(db);
+      const account = await resolveAccountContext(db, provider, parsed.data.accountId);
+      const { run, checkpoint } = await createParentRun(db, agencyId, {
+        adAccountId: account.dbRowId,
+        providerMode,
+        type: "manual",
+        metaAccountId: account.metaAccountId,
+        syncKind: "manual",
+        since: range.since,
+        until: range.until,
+        chunkDays: config.BACKFILL_CHUNK_DAYS,
+        timezone: account.timezone,
+        includeBreakdowns: parsed.data.includeBreakdowns ?? true
+      });
+      const job = await enqueueBackfillPlanner({
+        agencyId,
+        accountId: account.metaAccountId,
+        parentRunId: run.id,
+        dateStart: range.since,
+        dateEnd: range.until,
+        timezone: account.timezone,
+        syncKind: "manual",
+        syncType: "manual",
+        chunkDays: config.BACKFILL_CHUNK_DAYS,
+        includeBreakdowns: parsed.data.includeBreakdowns ?? true,
+        traceId: randomUUID()
+      });
+      logger.info("Manual sync enqueued via admin API", { accountId: account.metaAccountId, runId: run.id });
+      const summary = checkpointSummary(checkpoint);
+      return jsonResponse({
+        ok: true,
+        status: "queued",
+        queued: true,
+        persisted: true,
+        runId: run.id,
+        jobId: job.id ?? null,
+        account: { id: account.metaAccountId, name: account.name, currency: account.currency, timezone: account.timezone, accessStatus: account.accessStatus },
+        stages: [],
+        totalChunks: summary.totalChunks,
+        pendingChunks: pendingChunks(checkpoint).length,
+        availabilityCount: 0,
+        rawRecords: 0
+      });
+    }
+
     const persisted = await runPersistedSyncIfConfigured(provider, parsed.data.accountId, range, {
       providerMode,
       apiVersion: readiness.graphApiVersion,
@@ -66,6 +125,7 @@ export async function POST(request: Request) {
     return jsonResponse({
       ok: result.status !== "failed",
       status: result.status,
+      queued: false,
       persisted: persisted.persisted,
       runId: persisted.runId,
       account: result.account
@@ -76,6 +136,9 @@ export async function POST(request: Request) {
       rawRecords: result.rawRecords.length
     });
   } catch (error) {
+    if (error instanceof ApiError) {
+      return jsonResponse({ ok: false, error: error.message }, { status: error.status });
+    }
     logger.error("Meta account sync failed", { accountId: parsed.data.accountId });
     return jsonResponse({ ok: false, error: toSafeUserMessage(error) }, { status: 502 });
   }

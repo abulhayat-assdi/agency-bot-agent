@@ -48,6 +48,7 @@ export type TrendDashboardData = {
   accountComparisons: Record<ComparisonMetricKey, MetricComparison>;
   accountAnomalies: ReturnType<typeof detectAnomalies>;
   dailyTrend: Array<{ date: string; spend: number; impressions: number; clicks: number; conversions: number; roas: number | null }>;
+  source: "persisted" | "mock";
   caveats: string[];
 };
 
@@ -106,18 +107,22 @@ function hrefFor(level: ComparedEntity["level"], id: string) {
   return `/ads/${id}`;
 }
 
-async function loadPersistedAccounts(): Promise<MetaAdAccount[] | null> {
+async function loadPersistedAccounts(): Promise<Map<string, { account: MetaAdAccount; lastSyncAt: string | null }> | null> {
   const db = getAnalyticsDb();
   if (!db) return null;
   try {
     const contexts = await listPersistedAccounts(db);
-    return contexts ? contexts.map((context) => context.account) : null;
+    return contexts ? new Map(contexts.map((context) => [context.account.id, { account: context.account, lastSyncAt: context.lastSyncAt }])) : null;
   } catch {
     return null;
   }
 }
 
-async function listEntities(accountId: string, level: ComparedEntity["level"]) {
+function isPersistedSelection(persisted: Map<string, { account: MetaAdAccount; lastSyncAt: string | null }> | null, accountId: string) {
+  return Boolean(persisted?.get(accountId)?.lastSyncAt);
+}
+
+async function listEntities(accountId: string, level: ComparedEntity["level"], persistedOnly: boolean) {
   const db = getAnalyticsDb();
   if (db) {
     try {
@@ -148,6 +153,8 @@ async function listEntities(accountId: string, level: ComparedEntity["level"]) {
       // Fall through to the mock provider.
     }
   }
+  // A synced account reads persisted data only: missing rows stay missing, never mock-filled.
+  if (persistedOnly) return [];
   const provider = createMockMetaAdsProvider();
   const campaigns = await fetchAllPages<MetaCampaign>((after) => provider.listCampaigns(accountId, { limit: 100, after }));
 
@@ -179,7 +186,7 @@ async function listEntities(accountId: string, level: ComparedEntity["level"]) {
   }));
 }
 
-async function insightsFor(accountId: string, level: MetaEntityLevel, range: ReportingDateRange, entityIds?: string[]) {
+async function insightsFor(accountId: string, level: MetaEntityLevel, range: ReportingDateRange, persistedOnly: boolean, entityIds?: string[]) {
   const db = getAnalyticsDb();
   if (db) {
     try {
@@ -187,11 +194,13 @@ async function insightsFor(accountId: string, level: MetaEntityLevel, range: Rep
       if (context) {
         const rows = await fetchPersistedInsightRows(db, { accountDbId: context.dbRowId, account: context.account, level, entityKeys: entityIds, range });
         if (rows) return rows;
+        if (persistedOnly) return [];
       }
     } catch {
       // Fall through to the mock provider.
     }
   }
+  if (persistedOnly) return [];
   const provider = createMockMetaAdsProvider();
   return fetchAllPages<MetaInsightRow>((after) =>
     provider.getInsights({ accountId, level, entityIds, dateRange: range, limit: 100, after })
@@ -222,22 +231,25 @@ export async function getTrendDashboardData(query: TrendQuery = {}): Promise<Tre
   const provider = createMockMetaAdsProvider();
   const mockAccounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
   const persistedAccounts = await loadPersistedAccounts();
-  const accounts = persistedAccounts ?? mockAccounts;
+  const accounts = persistedAccounts ? [...persistedAccounts.values()].map((entry) => entry.account) : mockAccounts;
   const selectedAccount = accounts.find((account) => account.id === query.accountId) ?? accounts[0];
 
   if (!selectedAccount) throw new Error("No ad accounts available for trends");
 
+  const persistedOnly = isPersistedSelection(persistedAccounts, selectedAccount.id);
+  const source = persistedOnly ? "persisted" : "mock";
   const entityLevel = normalizeLevel(query.entityLevel);
   const metricKey = normalizeMetric(query.metricKey);
-  const range = resolveDatePreset(normalizePreset(query.preset), selectedAccount.timezone, new Date("2026-09-10T12:00:00.000Z"));
+  const referenceNow = persistedOnly ? new Date() : new Date("2026-09-10T12:00:00.000Z");
+  const range = resolveDatePreset(normalizePreset(query.preset), selectedAccount.timezone, referenceNow);
   const previousRange = previousEquivalentPeriod(range);
-  const entityDefinitions = await listEntities(selectedAccount.id, entityLevel);
+  const entityDefinitions = await listEntities(selectedAccount.id, entityLevel, persistedOnly);
 
   const [currentRows, previousRows, accountRows, previousAccountRows] = await Promise.all([
-    insightsFor(selectedAccount.id, entityLevel, range),
-    insightsFor(selectedAccount.id, entityLevel, previousRange),
-    insightsFor(selectedAccount.id, "account", range),
-    insightsFor(selectedAccount.id, "account", previousRange)
+    insightsFor(selectedAccount.id, entityLevel, range, persistedOnly),
+    insightsFor(selectedAccount.id, entityLevel, previousRange, persistedOnly),
+    insightsFor(selectedAccount.id, "account", range, persistedOnly),
+    insightsFor(selectedAccount.id, "account", previousRange, persistedOnly)
   ]);
 
   const currentByEntity = groupBy(currentRows, (row) => row.entityId);
@@ -295,8 +307,11 @@ export async function getTrendDashboardData(query: TrendQuery = {}): Promise<Tre
     },
     accountAnomalies: detectAnomalies(accountMetrics, previousAccountMetrics),
     dailyTrend: buildDailyTrend(accountRows),
+    source,
     caveats: [
-      "Trends and comparisons use persisted PostgreSQL data when an account has synced, otherwise deterministic mock Meta data.",
+      source === "persisted"
+        ? "Trends and comparisons read persisted PostgreSQL data; the database is the source of truth."
+        : "No persisted data exists for this account, so trends use deterministic mock Meta data.",
       "Percentage change is unavailable when the comparison period value is zero or unavailable.",
       "Rankings exclude entities where the selected metric is unavailable instead of treating unavailable as zero.",
       `Date boundaries use the selected account timezone: ${selectedAccount.timezone}. Currency: ${selectedAccount.currency}.`

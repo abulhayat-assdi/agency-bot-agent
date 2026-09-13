@@ -3,17 +3,29 @@ import { Queue, QueueEvents, type JobsOptions } from "bullmq";
 import { getAppConfig } from "@/server/config/env";
 import { logger } from "@/server/observability/logger";
 import { createRedisConnection, isRedisConfigured } from "@/server/jobs/redis";
+import { assertPayloadHasNoSecrets, backfillPlannerJobId, chunkJobId } from "@/server/sync/chunks";
 import {
+  SYNC_ACCOUNT_CHUNK_JOB,
   SYNC_AD_ACCOUNT_JOB,
   SYNC_ALL_ACCOUNTS_JOB,
+  SYNC_BACKFILL_PLANNER_JOB,
   SYNC_QUEUE_NAME,
   type QueueReadiness,
+  type SyncAccountChunkJobData,
   type SyncAdAccountJobData,
   type SyncAllAccountsJobData,
+  type SyncBackfillPlannerJobData,
   type SyncQueueJobData
 } from "@/server/jobs/types";
 
 const DEFAULT_ATTEMPTS = 5;
+const CHUNK_JOB_ATTEMPTS = 8;
+const CHUNK_JOB_BACKOFF_MS = 60_000;
+
+function workerConcurrency(env: Record<string, string | undefined> = process.env) {
+  return getAppConfig(env).META_SYNC_CONCURRENCY;
+}
+
 export const DEFAULT_SYNC_WORKER_CONCURRENCY = 2;
 
 const defaultJobOptions: JobsOptions = {
@@ -51,7 +63,7 @@ export function getSyncQueueReadiness(env: Record<string, string | undefined> = 
     configured: isRedisConfigured(env),
     queueName: SYNC_QUEUE_NAME,
     redisUrlPresent: Boolean(config.REDIS_URL),
-    workerConcurrency: DEFAULT_SYNC_WORKER_CONCURRENCY,
+    workerConcurrency: workerConcurrency(env),
     defaultAttempts: DEFAULT_ATTEMPTS,
     repeatableSyncIntervalMinutes: config.SYNC_INTERVAL_MINUTES
   };
@@ -87,6 +99,59 @@ export async function enqueueAllAccountsSync(data: SyncAllAccountsJobData, env: 
       jobId: job.id ?? null,
       agencyId: data.agencyId,
       type: data.type,
+      traceId: data.traceId
+    });
+    return job;
+  } finally {
+    await queue.close();
+  }
+}
+
+export async function enqueueAccountChunkSync(
+  data: SyncAccountChunkJobData,
+  env: Record<string, string | undefined> = process.env
+) {
+  assertPayloadHasNoSecrets(data);
+  const queue = createSyncQueue(env);
+  // Deterministic ID: re-enqueueing the same account+chunk dedupes instead of duplicating work.
+  const jobId = chunkJobId(data.accountId, data.syncKind, data.dateRange.since, data.dateRange.until);
+
+  try {
+    const job = await queue.add(SYNC_ACCOUNT_CHUNK_JOB, data, {
+      jobId,
+      attempts: CHUNK_JOB_ATTEMPTS,
+      backoff: { type: "exponential", delay: CHUNK_JOB_BACKOFF_MS }
+    });
+    logger.info("Queued Meta account chunk sync job", {
+      queue: SYNC_QUEUE_NAME,
+      jobId: job.id ?? null,
+      accountId: data.accountId,
+      chunkIndex: data.chunkIndex,
+      totalChunks: data.totalChunks,
+      parentRunId: data.parentRunId,
+      traceId: data.traceId
+    });
+    return job;
+  } finally {
+    await queue.close();
+  }
+}
+
+export async function enqueueBackfillPlanner(
+  data: SyncBackfillPlannerJobData,
+  env: Record<string, string | undefined> = process.env
+) {
+  assertPayloadHasNoSecrets(data);
+  const queue = createSyncQueue(env);
+  const jobId = backfillPlannerJobId(data.parentRunId);
+
+  try {
+    const job = await queue.add(SYNC_BACKFILL_PLANNER_JOB, data, { jobId, attempts: 3, backoff: { type: "exponential", delay: 10_000 } });
+    logger.info("Queued Meta backfill planner job", {
+      queue: SYNC_QUEUE_NAME,
+      jobId: job.id ?? null,
+      accountId: data.accountId,
+      parentRunId: data.parentRunId,
       traceId: data.traceId
     });
     return job;

@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { resolveDatePreset } from "@/lib/dates/reporting";
+import { getAppConfig } from "@/server/config/env";
 import { getSyncQueueReadiness, scheduleRecurringAllAccountSync } from "@/server/jobs";
 import { logger } from "@/server/observability/logger";
+import { incrementalSyncRange } from "@/server/sync/chunks";
 
 const readiness = getSyncQueueReadiness();
 
@@ -16,7 +17,8 @@ if (!readiness.configured) {
 
 const agencyId = process.env.SYNC_AGENCY_ID ?? "mock-agency";
 const timezone = process.env.SYNC_TIMEZONE ?? "UTC";
-const dateRange = resolveDatePreset("last_3_days", timezone);
+// Incremental schedule re-reads today plus a lookback window: Meta data stays mutable for a few days.
+const dateRange = incrementalSyncRange(timezone, getAppConfig().META_INCREMENTAL_LOOKBACK_DAYS);
 
 await scheduleRecurringAllAccountSync({
   agencyId,
