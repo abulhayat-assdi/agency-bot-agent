@@ -105,6 +105,7 @@ SESSION_SECRET=<long random secret, at least 32 characters>
 ADMIN_BOOTSTRAP_EMAIL=<admin email>
 ADMIN_BOOTSTRAP_PASSWORD_HASH=<bcrypt hash>
 DATABASE_URL=<postgres connection string>
+DATABASE_POOL_MAX=10 (per process; recommended web 10 / worker 5 / scheduler 2)
 REDIS_URL=<redis connection string>
 META_PROVIDER=mock or graph-api
 META_GRAPH_API_VERSION=v26.0
@@ -114,6 +115,7 @@ BACKFILL_MAX_DAYS=400
 META_INITIAL_SYNC_DAYS=30
 META_INCREMENTAL_LOOKBACK_DAYS=3
 SYNC_INTERVAL_MINUTES=60
+ANALYTICS_SOURCE=db (omit or "db" for persisted-first; "mock" forces demo data)
 EMAIL_PROVIDER=mock or resend
 ```
 
@@ -163,7 +165,7 @@ EMAIL_FROM=reports@example.com
 - Run migrations before routing traffic to a new schema-dependent release.
 - The dashboard reads persisted PostgreSQL data once an account has synced; never-synced accounts show an explicit "No synchronized data yet" banner instead of silent mock numbers (mock data only appears in non-production or unconnected states, always labeled).
 - The live Graph provider and BullMQ worker are ready for read-only provider calls when environment credentials are configured.
-- API rate limiting is currently in-memory. Use one web replica or replace with Redis-backed rate limiting before horizontal scaling.
+- API rate limiting is Redis-backed for sync/backfill routes (shared atomic counters) and process-local for AI/email routes. Use one web replica or migrate AI/email limits to the shared limiter before horizontal scaling.
 - Production CSP/frame policy should be finalized after the real domain and embedding requirements are known.
 
 ## Database migration runbook
@@ -180,10 +182,43 @@ EMAIL_FROM=reports@example.com
 - Migration recovery: if a migration fails mid-deploy, keep the previous image running, fix forward with a new migration, and re-run `deploy:migrate`. Rollback of code without rolling back an applied migration is only safe if the migration is backward compatible.
 - Secret recovery: all credentials live in Coolify env configuration only. There is no in-repo copy; rotate a secret by updating Coolify and redeploying.
 
+### Backup/restore drill (runbook, quarterly — NOT yet verified)
+
+> Status: documented, not yet executed against production. Do not claim verified backups until this drill passes once.
+
+1. **PostgreSQL backup.** `docker compose exec postgres pg_dump -U postgres meta_ads_intelligence > /backups/meta-$(date +%F).sql` (Coolify: trigger the scheduled backup and download the artifact).
+2. **Restore into an isolated database.** Never restore over production: `createdb meta_restore && psql meta_restore < /backups/meta-<date>.sql`.
+3. **Migration verification.** Run `DATABASE_URL=<restore-dsn> npm run deploy:migrate` — expect "already up to date"; then `npm run deploy:check`.
+4. **Row/count verification.** Compare row counts per table against production:
+   `SELECT 'metric_daily' t, COUNT(*) FROM metric_daily UNION ALL SELECT 'breakdown_metric_daily', COUNT(*) FROM breakdown_metric_daily UNION ALL SELECT 'sync_runs', COUNT(*) FROM sync_runs;`
+   then spot-check one account: latest `metric_daily.date` per `ad_accounts` matches production's data-through dates.
+5. **Application connectivity check.** Boot web with the restore DSN in staging and confirm `/api/ready` returns 200 with `database.reachable: true`, then tear the scratch database down.
+
+## Connection budget and concurrency
+
+Each process holds its own Postgres pool (`DATABASE_POOL_MAX`, default 10). Effective maximum connections = web + worker + scheduler. Recommended production starting point (stability over throughput):
+
+| Process | `DATABASE_POOL_MAX` | Notes |
+| --- | --- | --- |
+| Web | 10 | Short dashboard/API queries, all bounded (≤400-day ranges, ≤5000 rows, entities paginated 50/200) |
+| Worker | 5 | `META_SYNC_CONCURRENCY=2`; chunk syncs batch writes in 100-row groups |
+| Scheduler | 2 | One tick per interval; a handful of queries per account |
+
+Total ≈ 17 connections plus headroom — safely below default Postgres limits. Do not raise `META_SYNC_CONCURRENCY` above 2 until Meta throttle behavior and pool headroom are observed in production.
+
+## Analytics query safety
+
+Interactive reads are hard-bounded (`src/server/analytics/query-bounds.ts`): 400-day maximum range (larger history uses async backfill), 5000-row cap, entity listings paginated at 50/page (max 200). Account daily trends aggregate in PostgreSQL (`SUM ... GROUP BY date` with non-null counts driving availability); per-entity detail stays in the deterministic JS engine over bounded result sets. Materialized views are intentionally deferred until observed load justifies them. Indexes covering the hot paths: `(ad_account_id, date)`, `(entity_level, entity_key, date)`, `(ad_account_id, entity_level, entity_key, date)` unique.
+
+## Meta API throttling model
+
+Per-account AIMD pacing lives in each worker process (`src/server/sync/throttle.ts`): rate-limit/transient/network outcomes increase delay (honoring Meta `Retry-After` when sent), sustained health decays it. Tradeoff: with a single worker (the recommended starting deployment) this is exact; with multiple workers each paces independently, so aggregate pressure can exceed a single budget — acceptable because Meta throttles per account/token and BullMQ retries with backoff absorb the remainder. A distributed throttle is deferred until multi-worker load proves it necessary.
+
 ## Redis persistence and resources
 
 - Production Redis must run with AOF persistence (`--appendonly yes`) so queued chunk jobs survive restarts. BullMQ completed/failed history is retained 14/30 days by queue policy.
 - Treat Redis as a transport, not a source of truth: sync checkpoints live in PostgreSQL (`sync_runs.checkpoint`), so a cold Redis only delays work, never loses sync progress. No secrets are ever stored in job payloads.
+- **Redis loss recovery.** If Redis data is lost entirely: (1) restart Redis and the worker/scheduler; (2) queued-but-unstarted jobs are gone — re-enqueue via `POST /api/meta/sync` or `POST /api/meta/backfill`, or wait for the next scheduler tick; (3) in-flight chunks rerun safely (idempotent upserts keyed on schema unique scopes); (4) resume any parent run with failed/pending chunks — completed chunks are skipped via the PostgreSQL checkpoint. Do not claim zero-loss queue semantics: at-most-once delivery per job attempt is the honest model; idempotency is what makes retries safe.
 - Safe starting limits: `META_SYNC_CONCURRENCY=2`, one worker replica, default Node heap. Raise concurrency only after observing Meta throttle behavior and DB pool headroom (pool max is 10; each sync holds at most one connection at a time plus query bursts).
 
 ## Stale runs and alerting

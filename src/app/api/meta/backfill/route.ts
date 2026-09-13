@@ -4,7 +4,8 @@ import { z } from "zod";
 import { getAppConfig } from "@/server/config/env";
 import { toSafeUserMessage } from "@/server/meta/errors";
 import { applySecurityHeaders } from "@/server/security/headers";
-import { InMemoryApiRateLimiter, getClientIp, rateLimitHeaders } from "@/server/security/api-rate-limit";
+import { getClientIp, rateLimitHeaders } from "@/server/security/api-rate-limit";
+import { getSharedRateLimiter } from "@/server/security/redis-rate-limit";
 import { enqueueBackfillPlanner } from "@/server/jobs/queues";
 import { checkpointSummary, pendingChunks } from "@/server/sync/chunks";
 import { SyncRepository } from "@/server/repositories/sync-repository";
@@ -20,7 +21,7 @@ import { logger } from "@/server/observability/logger";
 
 export const dynamic = "force-dynamic";
 
-const limiter = new InMemoryApiRateLimiter({ limit: 10, windowMs: 10 * 60_000 });
+const limiter = getSharedRateLimiter("meta-backfill", { limit: 10, windowMs: 10 * 60_000 });
 
 const requestSchema = z.object({
   accountId: z.string().min(1).max(120),
@@ -39,7 +40,7 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
 }
 
 export async function POST(request: Request) {
-  const rateLimit = limiter.check(getClientIp(request));
+  const rateLimit = await limiter.check(getClientIp(request));
   if (!rateLimit.allowed) {
     return jsonResponse({ ok: false, error: "Backfill rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rateLimit) });
   }

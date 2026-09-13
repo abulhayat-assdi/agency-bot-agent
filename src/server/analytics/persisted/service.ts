@@ -21,6 +21,8 @@ import {
   persistedRowToInput,
   type PersistedAccountContext
 } from "@/server/analytics/persisted/store";
+import { toAnalyticsMetricSet } from "@/server/analytics/metrics/normalization";
+import { clampPageLimit, clampPageOffset } from "@/server/analytics/query-bounds";
 import { MetricsRepository } from "@/server/repositories/metrics-repository";
 
 export type PersistedProvenance = {
@@ -141,8 +143,8 @@ async function entityPerformance(
             }));
 
   const [currentRows, previousRows] = await Promise.all([
-    fetchPersistedInsightRows(db, { accountDbId: context.dbRowId, account: context.account, level, range, limit: 20000 }),
-    fetchPersistedInsightRows(db, { accountDbId: context.dbRowId, account: context.account, level, range: previousRange, limit: 20000 })
+    fetchPersistedInsightRows(db, { accountDbId: context.dbRowId, account: context.account, level, range, limit: 5000 }),
+    fetchPersistedInsightRows(db, { accountDbId: context.dbRowId, account: context.account, level, range: previousRange, limit: 5000 })
   ]);
   if (!currentRows) return null;
 
@@ -184,8 +186,8 @@ export function getPersistedCampaignPerformance(
     if (options.status) entities = entities.filter((entity) => entity.status.toUpperCase() === options.status?.toUpperCase());
     const key = options.sort ?? "spend";
     entities = [...entities].sort((a, b) => (b.metrics[key].value ?? -1) - (a.metrics[key].value ?? -1));
-    const offset = options.offset ?? 0;
-    const limit = options.limit ?? 100;
+    const offset = clampPageOffset(options.offset);
+    const limit = clampPageLimit(options.limit);
     return { ...result, entities: entities.slice(offset, offset + limit), total: entities.length };
   });
 }
@@ -199,8 +201,8 @@ export function getPersistedAdsetPerformance(
 ) {
   return entityPerformance(db, metaAccountId, "adset", range, previousRange, { campaignId: options.campaignId }).then((result) => {
     if (!result) return null;
-    const offset = options.offset ?? 0;
-    const limit = options.limit ?? 100;
+    const offset = clampPageOffset(options.offset);
+    const limit = clampPageLimit(options.limit);
     const sorted = [...result.entities].sort((a, b) => (b.metrics.spend.value ?? -1) - (a.metrics.spend.value ?? -1));
     return { ...result, entities: sorted.slice(offset, offset + limit), total: sorted.length };
   });
@@ -215,8 +217,8 @@ export function getPersistedAdPerformance(
 ) {
   return entityPerformance(db, metaAccountId, "ad", range, previousRange, options).then((result) => {
     if (!result) return null;
-    const offset = options.offset ?? 0;
-    const limit = options.limit ?? 100;
+    const offset = clampPageOffset(options.offset);
+    const limit = clampPageLimit(options.limit);
     const sorted = [...result.entities].sort((a, b) => (b.metrics.spend.value ?? -1) - (a.metrics.spend.value ?? -1));
     return { ...result, entities: sorted.slice(offset, offset + limit), total: sorted.length };
   });
@@ -270,9 +272,49 @@ export async function getPersistedBreakdown(
 
 export type PersistedTrendPoint = { date: string; spend: number; impressions: number; clicks: number; conversions: number; roas: number | null };
 
+function rollupAvailability(nonNull: number, total: number): "available" | "partial" | "unavailable" {
+  if (nonNull <= 0) return "unavailable";
+  if (nonNull < total) return "partial";
+  return "available";
+}
+
 export async function getPersistedTrend(db: Database, metaAccountId: string, range: MetaDateRange): Promise<{ context: PersistedAccountContext; points: PersistedTrendPoint[]; provenance: PersistedProvenance } | null> {
   const context = await findPersistedAccount(db, metaAccountId);
   if (!context) return null;
+  // Prefer the SQL daily rollup so trend queries never hydrate entity-level
+  // history into Node; fall back to row reads when the rollup is unavailable.
+  try {
+    const metrics = new MetricsRepository({ db, agencyId: "" });
+    const rollup = await metrics.sumDailyByDate({ adAccountId: context.dbRowId, dateStart: range.since, dateStop: range.until });
+    if (rollup.length > 0) {
+      const points = rollup.map((day) => {
+        const total = Number(day.rowCount);
+        const set = toAnalyticsMetricSet({
+          spend: day.spend === null ? null : Number(day.spend),
+          impressions: day.impressions === null ? null : Number(day.impressions),
+          clicks: day.clicks === null ? null : Number(day.clicks),
+          conversions: day.conversions === null ? null : Number(day.conversions),
+          availability: {
+            spend: rollupAvailability(Number(day.spendCount), total),
+            impressions: rollupAvailability(Number(day.impressionsCount), total),
+            clicks: rollupAvailability(Number(day.clicksCount), total),
+            conversions: rollupAvailability(Number(day.conversionsCount), total)
+          }
+        });
+        return {
+          date: day.date,
+          spend: set.spend.value ?? 0,
+          impressions: set.impressions.value ?? 0,
+          clicks: set.clicks.value ?? 0,
+          conversions: set.conversions.value ?? 0,
+          roas: set.roas.value
+        };
+      });
+      return { context, points, provenance: provenance(context.account.id, range) };
+    }
+  } catch {
+    // Fall through to the row-based path below.
+  }
   const rows = await fetchPersistedInsightRows(db, { accountDbId: context.dbRowId, account: context.account, level: "account", range });
   if (!rows) return null;
   const byDate = new Map<string, typeof rows>();

@@ -9,6 +9,7 @@ const envSchema = z.object({
   ADMIN_BOOTSTRAP_PASSWORD: z.string().min(8).optional(),
   ADMIN_BOOTSTRAP_PASSWORD_HASH: z.string().optional(),
   DATABASE_URL: z.string().min(1).optional(),
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
   REDIS_URL: z.string().min(1).optional(),
   SYNC_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
   BACKFILL_CHUNK_DAYS: z.coerce.number().int().min(1).max(31).default(7),

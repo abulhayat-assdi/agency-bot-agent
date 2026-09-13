@@ -224,11 +224,7 @@ export async function accountFreshnessList(db: Database, agencyId: string): Prom
 
 async function dataThroughDate(db: Database, adAccountId: string): Promise<string | null> {
   const metrics = new MetricsRepository({ db, agencyId: "" });
-  const rows = await metrics
-    .dailyByEntities({ adAccountId, entityLevel: "account", dateStart: "2000-01-01", dateStop: "2100-01-01", limit: 5000 })
-    .catch(() => []);
-  if (rows.length === 0) return null;
-  return rows.reduce((max, row) => (row.date > max ? row.date : max), rows[0].date);
+  return metrics.maxDailyDate(adAccountId, "account").catch(() => null);
 }
 
 export function isCheckpoint(value: unknown): value is ChunkCheckpoint {

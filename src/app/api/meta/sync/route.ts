@@ -5,7 +5,8 @@ import { z } from "zod";
 import { createConfiguredMetaAdsProvider, getMetaProviderReadiness } from "@/server/meta";
 import { toSafeUserMessage } from "@/server/meta/errors";
 import { applySecurityHeaders } from "@/server/security/headers";
-import { InMemoryApiRateLimiter, getClientIp, rateLimitHeaders } from "@/server/security/api-rate-limit";
+import { getClientIp, rateLimitHeaders } from "@/server/security/api-rate-limit";
+import { getSharedRateLimiter } from "@/server/security/redis-rate-limit";
 import { getAppConfig } from "@/server/config/env";
 import { enqueueBackfillPlanner } from "@/server/jobs/queues";
 import { checkpointSummary, pendingChunks } from "@/server/sync/chunks";
@@ -17,7 +18,7 @@ import { logger } from "@/server/observability/logger";
 
 export const dynamic = "force-dynamic";
 
-const syncLimiter = new InMemoryApiRateLimiter({ limit: 10, windowMs: 10 * 60_000 });
+const syncLimiter = getSharedRateLimiter("meta-sync", { limit: 10, windowMs: 10 * 60_000 });
 
 const requestSchema = z.object({
   accountId: z.string().min(1).max(120),
@@ -43,7 +44,7 @@ function defaultRange(days = 7) {
 }
 
 export async function POST(request: Request) {
-  const rateLimit = syncLimiter.check(getClientIp(request));
+  const rateLimit = await syncLimiter.check(getClientIp(request));
   if (!rateLimit.allowed) {
     return jsonResponse({ ok: false, error: "Meta sync rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rateLimit) });
   }

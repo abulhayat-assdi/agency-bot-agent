@@ -1,4 +1,4 @@
-import { and, asc, between, eq, inArray } from "drizzle-orm";
+import { and, asc, between, eq, inArray, max, sql } from "drizzle-orm";
 
 import {
   breakdownMetricDaily,
@@ -9,6 +9,7 @@ import {
   type NewMetricPeriod
 } from "@/server/db/schema";
 import type { RepositoryContext } from "@/server/repositories/types";
+import { assertAnalyticsRange, clampRowLimit } from "@/server/analytics/query-bounds";
 
 type DailyInsert = Omit<NewMetricDaily, "id" | "createdAt">;
 type BreakdownInsert = Omit<NewBreakdownMetricDaily, "id" | "createdAt">;
@@ -56,6 +57,7 @@ export class MetricsRepository {
     dateStop: string;
     limit?: number;
   }) {
+    assertAnalyticsRange(params.dateStart, params.dateStop);
     const filters = [
       eq(metricDaily.adAccountId, params.adAccountId),
       eq(metricDaily.entityLevel, params.entityLevel),
@@ -67,8 +69,50 @@ export class MetricsRepository {
     return this.context.db.query.metricDaily.findMany({
       where: and(...filters),
       orderBy: [asc(metricDaily.date)],
-      limit: params.limit ?? 5000
+      limit: clampRowLimit(params.limit)
     });
+  }
+
+  /** Newest synced account-level date without scanning rows (freshness checks). */
+  async maxDailyDate(adAccountId: string, entityLevel: "account" | "campaign" | "adset" | "ad" = "account"): Promise<string | null> {
+    const [row] = await this.context.db
+      .select({ value: max(metricDaily.date) })
+      .from(metricDaily)
+      .where(and(eq(metricDaily.adAccountId, adAccountId), eq(metricDaily.entityLevel, entityLevel)));
+    return row?.value ?? null;
+  }
+
+  /**
+   * Account-level daily rollup computed in PostgreSQL (SUM + non-null counts
+   * per metric), so trend queries never hydrate entity-level history into Node.
+   * Null semantics: a metric sums only present values; nonNull counts let the
+   * caller mark unavailable vs partial honestly.
+   */
+  async sumDailyByDate(params: { adAccountId: string; dateStart: string; dateStop: string }) {
+    assertAnalyticsRange(params.dateStart, params.dateStop);
+    return this.context.db
+      .select({
+        date: metricDaily.date,
+        spend: sql<string | null>`sum(${metricDaily.spend})`,
+        impressions: sql<string | null>`sum(${metricDaily.impressions})`,
+        clicks: sql<string | null>`sum(${metricDaily.clicks})`,
+        conversions: sql<string | null>`sum(${metricDaily.conversions})`,
+        rowCount: sql<string>`count(*)`,
+        spendCount: sql<string>`count(${metricDaily.spend})`,
+        impressionsCount: sql<string>`count(${metricDaily.impressions})`,
+        clicksCount: sql<string>`count(${metricDaily.clicks})`,
+        conversionsCount: sql<string>`count(${metricDaily.conversions})`
+      })
+      .from(metricDaily)
+      .where(
+        and(
+          eq(metricDaily.adAccountId, params.adAccountId),
+          eq(metricDaily.entityLevel, "account"),
+          between(metricDaily.date, params.dateStart, params.dateStop)
+        )
+      )
+      .groupBy(metricDaily.date)
+      .orderBy(asc(metricDaily.date));
   }
 
   async upsertDaily(input: DailyInsert) {
@@ -172,6 +216,7 @@ export class MetricsRepository {
   }
 
   breakdownDaily(params: { adAccountId: string; breakdownKey: string; dateStart: string; dateStop: string; entityKeys?: string[]; limit?: number }) {
+    assertAnalyticsRange(params.dateStart, params.dateStop);
     const filters = [
       eq(breakdownMetricDaily.adAccountId, params.adAccountId),
       eq(breakdownMetricDaily.breakdownKey, params.breakdownKey),
@@ -183,7 +228,7 @@ export class MetricsRepository {
     return this.context.db.query.breakdownMetricDaily.findMany({
       where: and(...filters),
       orderBy: [asc(breakdownMetricDaily.date)],
-      limit: params.limit ?? 5000
+      limit: clampRowLimit(params.limit)
     });
   }
 }

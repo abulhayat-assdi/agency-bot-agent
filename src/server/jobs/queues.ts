@@ -57,8 +57,41 @@ export function createSyncQueueEvents(env: Record<string, string | undefined> = 
   });
 }
 
-export function getSyncQueueReadiness(env: Record<string, string | undefined> = process.env): QueueReadiness {
-  const config = getAppConfig(env);
+export type SyncQueueMetrics = {
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  delayed: number;
+};
+
+/**
+ * Live queue depth for autoscaling readiness and ops dashboards.
+ * Returns null when Redis is not configured (local/test environments).
+ */
+export async function getSyncQueueMetrics(
+  env: Record<string, string | undefined> = process.env,
+  openQueue: (env: Record<string, string | undefined>) => Pick<Queue<SyncQueueJobData>, "getJobCounts" | "close"> = createSyncQueue
+): Promise<SyncQueueMetrics | null> {
+  if (!isRedisConfigured(env)) return null;
+  const queue = openQueue(env);
+  try {
+    const counts = await queue.getJobCounts("waiting", "active", "completed", "failed", "delayed");
+    return {
+      waiting: counts.waiting ?? 0,
+      active: counts.active ?? 0,
+      completed: counts.completed ?? 0,
+      failed: counts.failed ?? 0,
+      delayed: counts.delayed ?? 0
+    };
+  } catch {
+    return null;
+  } finally {
+    await queue.close().catch(() => undefined);
+  }
+}
+
+export function getSyncQueueReadiness(env: Record<string, string | undefined> = process.env): QueueReadiness {  const config = getAppConfig(env);
   return {
     configured: isRedisConfigured(env),
     queueName: SYNC_QUEUE_NAME,
