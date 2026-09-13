@@ -1,6 +1,17 @@
+import { and, eq } from "drizzle-orm";
+
 import { aggregateSourceMetrics } from "@/server/analytics/metrics/aggregate";
 import { detectAnomalies, evaluateDataSufficiency, type AnalyticsMetricSet } from "@/server/analytics";
+import {
+  fetchPersistedBreakdownRows,
+  fetchPersistedHierarchy,
+  fetchPersistedInsightRows,
+  findPersistedAccount,
+  getAnalyticsDb,
+  listPersistedAccounts
+} from "@/server/analytics/persisted/store";
 import { createMockMetaAdsProvider, type MetaAd, type MetaAdAccount, type MetaAdSet, type MetaBreakdownRow, type MetaCampaign, type MetaCreative, type MetaInsightRow } from "@/server/meta";
+import { ads, creativeMetadata } from "@/server/db/schema";
 import { dashboardClients, type DashboardClient } from "@/server/dashboard/mock-dashboard-data";
 import { previousEquivalentPeriod, resolveDatePreset, type DateRangePreset, type ReportingDateRange } from "@/lib/dates/reporting";
 
@@ -91,19 +102,78 @@ function trendFromRows(rows: MetaInsightRow[]) {
 }
 
 async function getBaseContext() {
+  const persisted = await loadPersistedHierarchy();
+  if (persisted) return { ...persisted, provider: createMockMetaAdsProvider() };
   const provider = createMockMetaAdsProvider();
   const accounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
   const campaigns = (await Promise.all(accounts.map((account) => fetchAllPages<MetaCampaign>((after) => provider.listCampaigns(account.id, { limit: 100, after }))))).flat();
   const adSets = (await Promise.all(accounts.map((account) => fetchAllPages<MetaAdSet>((after) => provider.listAdSets(account.id, undefined, { limit: 100, after }))))).flat();
   const ads = (await Promise.all(accounts.map((account) => fetchAllPages<MetaAd>((after) => provider.listAds(account.id, undefined, { limit: 100, after }))))).flat();
-  return { provider, accounts, campaigns, adSets, ads };
+  return { provider, accounts, campaigns, adSets, ads, clients: dashboardClients };
+}
+
+async function loadPersistedHierarchy(): Promise<{ accounts: MetaAdAccount[]; campaigns: MetaCampaign[]; adSets: MetaAdSet[]; ads: MetaAd[]; clients: DashboardClient[] } | null> {
+  const db = getAnalyticsDb();
+  if (!db) return null;
+  try {
+    const contexts = await listPersistedAccounts(db);
+    if (!contexts) return null;
+    const accounts: MetaAdAccount[] = [];
+    const campaigns: MetaCampaign[] = [];
+    const adSets: MetaAdSet[] = [];
+    const ads: MetaAd[] = [];
+    const clients: DashboardClient[] = [];
+    for (const context of contexts) {
+      const hierarchy = await fetchPersistedHierarchy(db, context.account, context.dbRowId);
+      if (!hierarchy) continue;
+      accounts.push(context.account);
+      campaigns.push(...hierarchy.campaigns);
+      adSets.push(...hierarchy.adSets);
+      ads.push(...hierarchy.ads);
+      clients.push({ id: context.clientId, name: context.clientName, status: "active", accountIds: [context.account.id] });
+    }
+    if (accounts.length === 0) return null;
+    return { accounts, campaigns, adSets, ads, clients };
+  } catch {
+    return null;
+  }
+}
+
+function clientForPersisted(accountId: string, clients: DashboardClient[]) {
+  return clients.find((client) => client.accountIds.includes(accountId)) ?? clientForAccount(accountId);
+}
+
+async function getPersistedRows(accountId: string, level: "campaign" | "adset" | "ad", entityId: string, range: ReportingDateRange): Promise<MetaInsightRow[] | null> {
+  const db = getAnalyticsDb();
+  if (!db) return null;
+  try {
+    const context = await findPersistedAccount(db, accountId);
+    if (!context) return null;
+    return await fetchPersistedInsightRows(db, { accountDbId: context.dbRowId, account: context.account, level, entityKeys: [entityId], range });
+  } catch {
+    return null;
+  }
 }
 
 async function getInsights(accountId: string, level: "campaign" | "adset" | "ad", entityId: string, range: ReportingDateRange) {
+  const persisted = await getPersistedRows(accountId, level, entityId, range);
+  if (persisted) return persisted;
   const provider = createMockMetaAdsProvider();
   return fetchAllPages<MetaInsightRow>((after) =>
     provider.getInsights({ accountId, level, entityIds: [entityId], dateRange: range, limit: 100, after })
   );
+}
+
+async function getPersistedBreakdownPreview(accountId: string, level: "campaign" | "adset" | "ad", entityId: string, range: ReportingDateRange, breakdowns: string[]): Promise<MetaBreakdownRow[] | null> {
+  const db = getAnalyticsDb();
+  if (!db) return null;
+  try {
+    const context = await findPersistedAccount(db, accountId);
+    if (!context) return null;
+    return await fetchPersistedBreakdownRows(db, { accountDbId: context.dbRowId, account: context.account, level, breakdowns, range, entityKeys: [entityId] });
+  } catch {
+    return null;
+  }
 }
 
 async function breakdownPreview(accountId: string, level: "campaign" | "adset" | "ad", entityId: string, range: ReportingDateRange): Promise<BreakdownPreview[]> {
@@ -119,9 +189,12 @@ async function breakdownPreview(accountId: string, level: "campaign" | "adset" |
   const previews: BreakdownPreview[] = [];
 
   for (const definition of definitions) {
-    const rows = await fetchAllPages<MetaBreakdownRow>((after) =>
-      provider.getBreakdowns({ accountId, level, entityIds: [entityId], dateRange: range, breakdowns: definition.breakdowns, limit: 100, after })
-    );
+    const persisted = await getPersistedBreakdownPreview(accountId, level, entityId, range, definition.breakdowns);
+    const rows =
+      persisted ??
+      (await fetchAllPages<MetaBreakdownRow>((after) =>
+        provider.getBreakdowns({ accountId, level, entityIds: [entityId], dateRange: range, breakdowns: definition.breakdowns, limit: 100, after })
+      ));
     const groups = groupBy(rows, (row) => JSON.stringify(row.breakdownValues));
     previews.push({
       key: definition.key,
@@ -161,7 +234,7 @@ function baseReport(rows: MetaInsightRow[], previousRows: MetaInsightRow[], rang
     children,
     breakdowns,
     caveats: [
-      "This report is powered by deterministic mock Meta data until the live read-only Meta integration milestone.",
+      "This report reads persisted PostgreSQL data when the account has synced, otherwise deterministic mock Meta data.",
       "All derived metrics are calculated by the analytics engine, not by AI or UI code.",
       "Unavailable, unsupported, partial, and null metrics are shown explicitly and are not converted to zero.",
       `Reporting dates use the ad account timezone: ${context.account.timezone}.`
@@ -169,8 +242,45 @@ function baseReport(rows: MetaInsightRow[], previousRows: MetaInsightRow[], rang
   };
 }
 
+async function getCreativeForAd(accountId: string, ad: MetaAd, provider: ReturnType<typeof createMockMetaAdsProvider>): Promise<MetaCreative | null> {
+  const persisted = await getPersistedCreative(accountId, ad.id);
+  if (persisted !== undefined) return persisted;
+  try {
+    return await provider.getCreative(ad.id);
+  } catch {
+    return null;
+  }
+}
+
+async function getPersistedCreative(accountId: string, metaAdId: string): Promise<MetaCreative | null | undefined> {
+  const db = getAnalyticsDb();
+  if (!db) return undefined;
+  try {
+    const context = await findPersistedAccount(db, accountId);
+    if (!context) return undefined;
+    const adRow = await db.query.ads.findFirst({
+      where: and(eq(ads.adAccountId, context.dbRowId), eq(ads.metaAdId, metaAdId))
+    });
+    if (!adRow) return undefined;
+    const creativeRow = (await db.query.creativeMetadata.findMany({ where: eq(creativeMetadata.adId, adRow.id), limit: 1 }))[0];
+    if (!creativeRow) return null;
+    return {
+      id: creativeRow.metaCreativeId,
+      adId: metaAdId,
+      name: creativeRow.name ?? creativeRow.metaCreativeId,
+      pageId: creativeRow.pageId ?? undefined,
+      instagramActorId: creativeRow.instagramActorId ?? undefined,
+      thumbnailUrl: creativeRow.thumbnailUrl ?? undefined,
+      objectType: (creativeRow.objectType as MetaCreative["objectType"]) ?? "image",
+      metadata: (creativeRow.metadata ?? {}) as Record<string, unknown>
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export async function getCampaignReport(campaignId: string, preset: DateRangePreset = "last_7_days") {
-  const { provider, accounts, campaigns, adSets } = await getBaseContext();
+  const { provider, accounts, campaigns, adSets, clients } = await getBaseContext();
   const campaign = campaigns.find((item) => item.id === campaignId);
   if (!campaign) return null;
   const account = accounts.find((item) => item.id === campaign.accountId);
@@ -191,11 +301,11 @@ export async function getCampaignReport(campaignId: string, preset: DateRangePre
   );
   const breakdowns = await breakdownPreview(account.id, "campaign", campaign.id, range);
   void provider;
-  return baseReport(rows, previousRows, range, previousRange, { client: clientForAccount(account.id), account, campaign }, children, breakdowns);
+  return baseReport(rows, previousRows, range, previousRange, { client: clientForPersisted(account.id, clients), account, campaign }, children, breakdowns);
 }
 
 export async function getAdSetReport(adSetId: string, preset: DateRangePreset = "last_7_days") {
-  const { accounts, campaigns, adSets, ads } = await getBaseContext();
+  const { accounts, campaigns, adSets, ads, clients } = await getBaseContext();
   const adSet = adSets.find((item) => item.id === adSetId);
   if (!adSet) return null;
   const account = accounts.find((item) => item.id === adSet.accountId);
@@ -216,22 +326,22 @@ export async function getAdSetReport(adSetId: string, preset: DateRangePreset = 
     }))
   );
   const breakdowns = await breakdownPreview(account.id, "adset", adSet.id, range);
-  return baseReport(rows, previousRows, range, previousRange, { client: clientForAccount(account.id), account, campaign, adSet }, children, breakdowns);
+  return baseReport(rows, previousRows, range, previousRange, { client: clientForPersisted(account.id, clients), account, campaign, adSet }, children, breakdowns);
 }
 
 export async function getAdReport(adId: string, preset: DateRangePreset = "last_7_days") {
-  const { provider, accounts, campaigns, adSets, ads } = await getBaseContext();
+  const { provider, accounts, campaigns, adSets, ads, clients } = await getBaseContext();
   const ad = ads.find((item) => item.id === adId);
   if (!ad) return null;
   const account = accounts.find((item) => item.id === ad.accountId);
   const campaign = campaigns.find((item) => item.id === ad.campaignId);
   const adSet = adSets.find((item) => item.id === ad.adSetId);
   if (!account || !campaign || !adSet) return null;
-  const creative = await provider.getCreative(ad.id);
+  const creative = await getCreativeForAd(account.id, ad, provider);
   const range = resolveDatePreset(preset, account.timezone, new Date("2026-09-10T12:00:00.000Z"));
   const previousRange = previousEquivalentPeriod(range);
   const rows = await getInsights(account.id, "ad", ad.id, range);
   const previousRows = await getInsights(account.id, "ad", ad.id, previousRange);
   const breakdowns = await breakdownPreview(account.id, "ad", ad.id, range);
-  return baseReport(rows, previousRows, range, previousRange, { client: clientForAccount(account.id), account, campaign, adSet, ad, creative }, [], breakdowns);
+  return baseReport(rows, previousRows, range, previousRange, { client: clientForPersisted(account.id, clients), account, campaign, adSet, ad, creative }, [], breakdowns);
 }

@@ -1,0 +1,90 @@
+import { desc, eq } from "drizzle-orm";
+
+import {
+  dataAvailability,
+  rawIngestionRecords,
+  syncErrors,
+  syncRuns,
+  type NewSyncError,
+  type NewSyncRun
+} from "@/server/db/schema";
+import type { RepositoryContext } from "@/server/repositories/types";
+
+type RawInsert = typeof rawIngestionRecords.$inferInsert;
+type AvailabilityInsert = typeof dataAvailability.$inferInsert;
+
+export class SyncRepository {
+  constructor(private readonly context: RepositoryContext) {}
+
+  async startRun(input: Omit<NewSyncRun, "agencyId" | "provider" | "status"> & { provider?: NewSyncRun["provider"] }) {
+    const [run] = await this.context.db
+      .insert(syncRuns)
+      .values({
+        ...input,
+        agencyId: this.context.agencyId,
+        provider: input.provider ?? "meta",
+        status: "running",
+        startedAt: new Date()
+      })
+      .returning();
+    return run;
+  }
+
+  async finishRun(
+    id: string,
+    patch: Partial<Pick<NewSyncRun, "status" | "stats" | "checkpoint" | "errorSummary" | "finishedAt">> & {
+      status: NewSyncRun["status"];
+    }
+  ) {
+    const [run] = await this.context.db
+      .update(syncRuns)
+      .set({ ...patch, finishedAt: patch.finishedAt ?? new Date() })
+      .where(eq(syncRuns.id, id))
+      .returning();
+    return run;
+  }
+
+  latestRuns(adAccountId: string | null, limit = 10) {
+    if (!adAccountId) {
+      return this.context.db.query.syncRuns.findMany({
+        orderBy: [desc(syncRuns.createdAt)],
+        limit
+      });
+    }
+    return this.context.db.query.syncRuns.findMany({
+      where: eq(syncRuns.adAccountId, adAccountId),
+      orderBy: [desc(syncRuns.createdAt)],
+      limit
+    });
+  }
+
+  async recordError(input: Omit<NewSyncError, "id" | "occurredAt">) {
+    const [row] = await this.context.db.insert(syncErrors).values(input).returning();
+    return row;
+  }
+
+  errorsForRun(syncRunId: string) {
+    return this.context.db.query.syncErrors.findMany({
+      where: eq(syncErrors.syncRunId, syncRunId)
+    });
+  }
+
+  async recordRaw(input: Omit<RawInsert, "id" | "receivedAt">) {
+    const [row] = await this.context.db.insert(rawIngestionRecords).values(input).returning();
+    return row;
+  }
+
+  async recordAvailability(input: Omit<AvailabilityInsert, "id" | "createdAt">) {
+    const [row] = await this.context.db.insert(dataAvailability).values(input).returning();
+    return row;
+  }
+
+  async recordAvailabilityMany(inputs: Array<Omit<AvailabilityInsert, "id" | "createdAt">>) {
+    if (inputs.length === 0) return [];
+    const rows = [];
+    for (const input of inputs) {
+      rows.push(await this.recordAvailability(input));
+    }
+    return rows;
+  }
+}

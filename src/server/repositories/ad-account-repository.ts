@@ -23,8 +23,7 @@ export class AdAccountRepository {
     });
   }
 
-  async upsert(input: Omit<NewAdAccount, "agencyId" | "provider">) {
-    const [account] = await this.context.db
+  async upsert(input: Omit<NewAdAccount, "agencyId" | "provider">) {    const [account] = await this.context.db
       .insert(adAccounts)
       .values({ ...input, agencyId: this.context.agencyId, provider: "meta" })
       .onConflictDoUpdate({
@@ -42,6 +41,20 @@ export class AdAccountRepository {
           archivedAt: null
         }
       })
+      .returning();
+
+    return account;
+  }
+
+  async markSynced(id: string, state: "success" | "partial" | "failed", at = new Date()) {
+    const [account] = await this.context.db
+      .update(adAccounts)
+      .set({
+        lastSyncState: state,
+        lastSuccessfulSyncAt: state === "failed" ? undefined : at,
+        updatedAt: new Date()
+      })
+      .where(eq(adAccounts.id, id))
       .returning();
 
     return account;

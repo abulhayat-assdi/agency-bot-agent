@@ -1,5 +1,11 @@
 import { aggregateSourceMetrics } from "@/server/analytics/metrics/aggregate";
 import type { AnalyticsMetricSet } from "@/server/analytics";
+import {
+  fetchPersistedBreakdownRows,
+  findPersistedAccount,
+  getAnalyticsDb,
+  listPersistedAccounts
+} from "@/server/analytics/persisted/store";
 import { createMockMetaAdsProvider, MetaApiError, type MetaAdAccount, type MetaBreakdownRow, type MetaEntityLevel } from "@/server/meta";
 import { resolveDatePreset, type DateRangePreset, type ReportingDateRange } from "@/lib/dates/reporting";
 import { breakdownCapabilities, validateBreakdownRequest, type BreakdownCapability } from "@/server/breakdowns/capabilities";
@@ -83,13 +89,66 @@ function normalizeLevel(value: MetaEntityLevel | undefined): MetaEntityLevel {
   return value ?? "account";
 }
 
+async function loadPersistedAccounts(): Promise<MetaAdAccount[] | null> {
+  const db = getAnalyticsDb();
+  if (!db) return null;
+  try {
+    const contexts = await listPersistedAccounts(db);
+    return contexts ? contexts.map((context) => context.account) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchBreakdownRows(
+  selectedAccount: MetaAdAccount,
+  level: MetaEntityLevel,
+  entityId: string,
+  range: ReportingDateRange,
+  dimensions: string[]
+): Promise<MetaBreakdownRow[]> {
+  const db = getAnalyticsDb();
+  if (db) {
+    try {
+      const context = await findPersistedAccount(db, selectedAccount.id);
+      if (context) {
+        const rows = await fetchPersistedBreakdownRows(db, {
+          accountDbId: context.dbRowId,
+          account: context.account,
+          level,
+          breakdowns: dimensions,
+          range,
+          entityKeys: level === "account" ? undefined : [entityId]
+        });
+        if (rows) return rows;
+      }
+    } catch {
+      // Fall through to the mock provider.
+    }
+  }
+  const provider = createMockMetaAdsProvider();
+  return fetchAllPages<MetaBreakdownRow>((after) =>
+    provider.getBreakdowns({
+      accountId: selectedAccount.id,
+      level,
+      entityIds: level === "account" ? undefined : [entityId],
+      dateRange: range,
+      breakdowns: dimensions,
+      limit: 100,
+      after
+    })
+  );
+}
+
 export async function getBreakdownDashboardData(query: BreakdownQuery = {}): Promise<BreakdownDashboardData> {
   const provider = createMockMetaAdsProvider();
-  const accounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
+  const mockAccounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
+  const persistedAccounts = await loadPersistedAccounts();
+  const accounts = persistedAccounts ?? mockAccounts;
   const selectedAccount = accounts.find((account) => account.id === query.accountId) ?? accounts[0];
 
   if (!selectedAccount) {
-    throw new Error("No mock ad accounts available for breakdown analysis");
+    throw new Error("No ad accounts available for breakdown analysis");
   }
 
   const level = normalizeLevel(query.level);
@@ -99,17 +158,7 @@ export async function getBreakdownDashboardData(query: BreakdownQuery = {}): Pro
   const validation = validateBreakdownRequest(requestedKey, level);
   const selectedCapability = validation.supported && validation.capability ? validation.capability : breakdownCapabilities.find((capability) => capability.key === "age,gender")!;
 
-  const breakdownRows = await fetchAllPages<MetaBreakdownRow>((after) =>
-    provider.getBreakdowns({
-      accountId: selectedAccount.id,
-      level,
-      entityIds: level === "account" ? undefined : [entityId],
-      dateRange: range,
-      breakdowns: selectedCapability.dimensions,
-      limit: 100,
-      after
-    })
-  );
+  const breakdownRows = await fetchBreakdownRows(selectedAccount, level, entityId, range, selectedCapability.dimensions);
 
   const groupedRows = Object.entries(groupBy(breakdownRows, (row) => JSON.stringify(row.breakdownValues))).map(([valuesJson, rows]) => {
     const values = JSON.parse(valuesJson) as Record<string, string>;
@@ -151,7 +200,7 @@ export async function getBreakdownDashboardData(query: BreakdownQuery = {}): Pro
     rows: groupedRows.sort((a, b) => (b.metrics.spend.value ?? 0) - (a.metrics.spend.value ?? 0)),
     unsupportedExamples,
     caveats: [
-      "Breakdown data is deterministic mock Meta data until live read-only Meta integration is implemented.",
+      "Breakdown data comes from persisted PostgreSQL rows when the account has synced, otherwise deterministic mock Meta data.",
       "Meta breakdown values may be estimated or conditionally unavailable; the UI surfaces limitations instead of hiding them.",
       "Hourly reports intentionally mark reach and frequency as unsupported instead of presenting provider zeros.",
       `Timezone shown for this analysis: ${selectedAccount.timezone}. Currency: ${selectedAccount.currency}.`

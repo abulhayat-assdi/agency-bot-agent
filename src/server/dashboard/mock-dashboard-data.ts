@@ -1,5 +1,12 @@
 import { detectAnomalies, toAnalyticsMetricSet, type AnalyticsMetricSet } from "@/server/analytics";
 import { aggregateSourceMetrics } from "@/server/analytics/metrics/aggregate";
+import {
+  fetchPersistedInsightRows,
+  findPersistedAccount,
+  getAnalyticsDb,
+  listPersistedAccounts,
+  type PersistedAccountContext
+} from "@/server/analytics/persisted/store";
 import { createMockMetaAdsProvider } from "@/server/meta";
 import type { MetaAdAccount, MetaInsightRow } from "@/server/meta";
 import { previousEquivalentPeriod, resolveDatePreset, type DateRangePreset, type ReportingDateRange } from "@/lib/dates/reporting";
@@ -89,6 +96,28 @@ function clientForAccount(accountId: string) {
   return dashboardClients.find((client) => client.accountIds.includes(accountId)) ?? dashboardClients[0];
 }
 
+async function loadPersistedAccounts(): Promise<{ accounts: MetaAdAccount[]; clients: DashboardClient[]; byId: Map<string, PersistedAccountContext> } | null> {
+  const db = getAnalyticsDb();
+  if (!db) return null;
+  try {
+    const contexts = await listPersistedAccounts(db);
+    if (!contexts) return null;
+    const byId = new Map(contexts.map((context) => [context.account.id, context]));
+    const clientsById = new Map<string, DashboardClient>();
+    for (const context of contexts) {
+      const existing = clientsById.get(context.clientId);
+      if (existing) {
+        existing.accountIds.push(context.account.id);
+      } else {
+        clientsById.set(context.clientId, { id: context.clientId, name: context.clientName, status: "active", accountIds: [context.account.id] });
+      }
+    }
+    return { accounts: contexts.map((context) => context.account), clients: [...clientsById.values()], byId };
+  } catch {
+    return null;
+  }
+}
+
 function normalizePreset(value: string | undefined): DateRangePreset {
   const allowed: DateRangePreset[] = [
     "today",
@@ -133,6 +162,18 @@ async function fetchAllPages<T>(fetchPage: (after?: string) => Promise<{ data: T
 }
 
 async function getRowsForRange(accountId: string, range: ReportingDateRange, level: "account" | "campaign") {
+  const db = getAnalyticsDb();
+  if (db) {
+    try {
+      const context = await findPersistedAccount(db, accountId);
+      if (context) {
+        const rows = await fetchPersistedInsightRows(db, { accountDbId: context.dbRowId, account: context.account, level, range });
+        if (rows) return rows;
+      }
+    } catch {
+      // Persisted reads are best-effort; fall back to the mock provider below.
+    }
+  }
   const provider = createMockMetaAdsProvider();
   return fetchAllPages<MetaInsightRow>((after) =>
     provider.getInsights({ accountId, level, dateRange: range, limit: 100, after })
@@ -176,9 +217,17 @@ function trendFromRows(rows: MetaInsightRow[]): TrendPoint[] {
 
 export async function getDashboardData(filters: DashboardFilters): Promise<DashboardData> {
   const provider = createMockMetaAdsProvider();
-  const accounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
+  const mockAccounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
+  const persisted = await loadPersistedAccounts();
+  const accounts = persisted?.accounts ?? mockAccounts;
+  const persistedById = persisted?.byId;
+  const clientFor = (accountId: string): DashboardClient => {
+    const match = persistedById?.get(accountId);
+    if (match) return { id: match.clientId, name: match.clientName, status: "active", accountIds: [accountId] };
+    return clientForAccount(accountId);
+  };
   const filteredByClient = filters.clientId
-    ? accounts.filter((account) => clientForAccount(account.id).id === filters.clientId)
+    ? accounts.filter((account) => clientFor(account.id).id === filters.clientId)
     : accounts;
   const selectedAccounts = filters.accountId ? filteredByClient.filter((account) => account.id === filters.accountId) : filteredByClient;
   const effectiveAccounts = selectedAccounts.length > 0 ? selectedAccounts : filteredByClient;
@@ -196,11 +245,11 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
 
   const accountSummaries = rowsByAccount.map(({ account, rows, previousRows }) => ({
     account,
-    client: clientForAccount(account.id),
+    client: clientFor(account.id),
     metrics: aggregateRows(rows),
     previousMetrics: aggregateRows(previousRows),
-    lastSyncAt: "2026-09-10T11:45:00.000Z",
-    freshnessState: "fresh" as const
+    lastSyncAt: persistedById?.get(account.id)?.lastSyncAt ?? "2026-09-10T11:45:00.000Z",
+    freshnessState: (persistedById?.has(account.id) ? (persistedById.get(account.id)?.lastSyncState === "failed" ? "stale" : "fresh") : "fresh") as "fresh" | "stale"
   }));
 
   const deliveryMetrics = aggregateRows(rowsByAccount.flatMap((item) => item.rows));
@@ -217,7 +266,7 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
       name: rows[0]?.entityName ?? campaignId,
       accountId: account.id,
       accountName: account.name,
-      clientName: clientForAccount(account.id).name,
+      clientName: clientFor(account.id).name,
       currency: account.currency,
       metrics: aggregateRows(rows)
     }))
@@ -225,8 +274,11 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
 
   const allRows = rowsByAccount.flatMap((item) => item.rows);
   const currencies = new Set(effectiveAccounts.map((account) => account.currency));
+  const usingPersisted = persistedById && effectiveAccounts.some((account) => persistedById.has(account.id));
   const caveats = [
-    "Milestone 6 dashboard uses deterministic mock Meta data only; no live Meta account facts are displayed yet.",
+    usingPersisted
+      ? "Reporting reads persisted Meta data from PostgreSQL; the database is the source of truth."
+      : "No persisted Meta data was found, so this view uses deterministic mock Meta data; connect and sync an account for real reporting.",
     "Financial KPIs are grouped by currency and are never silently mixed.",
     "Unavailable metrics are shown as unavailable/null and are not converted to zero."
   ];
@@ -239,7 +291,7 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
     generatedAt: new Date("2026-09-10T12:00:00.000Z").toISOString(),
     range,
     previousRange,
-    clients: dashboardClients,
+    clients: persisted?.clients ?? dashboardClients,
     accounts,
     selectedAccounts: effectiveAccounts,
     accountSummaries,
@@ -248,7 +300,7 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
     campaignSummaries,
     trend: trendFromRows(allRows),
     totals: {
-      clients: dashboardClients.length,
+      clients: (persisted?.clients ?? dashboardClients).length,
       connectedAccounts: accounts.filter((account) => account.accessStatus === "connected").length,
       selectedAccounts: effectiveAccounts.length
     },

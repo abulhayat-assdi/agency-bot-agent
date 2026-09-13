@@ -6,6 +6,8 @@ import { toSafeUserMessage } from "@/server/meta/errors";
 import { applySecurityHeaders } from "@/server/security/headers";
 import { InMemoryApiRateLimiter, getClientIp, rateLimitHeaders } from "@/server/security/api-rate-limit";
 import { syncAccount } from "@/server/sync/meta-sync";
+import { ensureDefaultScope, runPersistedSync } from "@/server/sync/meta-persistence";
+import { getDatabase } from "@/server/db/client";
 import { logger } from "@/server/observability/logger";
 
 export const dynamic = "force-dynamic";
@@ -48,15 +50,24 @@ export async function POST(request: Request) {
 
   try {
     const provider = createConfiguredMetaAdsProvider();
-    const result = await syncAccount(provider, parsed.data.accountId, range, {}, {
-      providerName: readiness.provider === "graph-api" ? "graph-api" : "mock",
+    const providerMode = readiness.provider === "graph-api" ? "graph_api" : "mock";
+    const persisted = await runPersistedSyncIfConfigured(provider, parsed.data.accountId, range, {
+      providerMode,
       apiVersion: readiness.graphApiVersion,
       includeBreakdowns: parsed.data.includeBreakdowns ?? false
     });
-    logger.info("Meta account sync requested via admin API", { accountId: parsed.data.accountId, status: result.status });
+    const result = persisted.result;
+    logger.info("Meta account sync requested via admin API", {
+      accountId: parsed.data.accountId,
+      status: result.status,
+      persisted: persisted.persisted,
+      runId: persisted.runId
+    });
     return jsonResponse({
       ok: result.status !== "failed",
       status: result.status,
+      persisted: persisted.persisted,
+      runId: persisted.runId,
       account: result.account
         ? { id: result.account.id, name: result.account.name, currency: result.account.currency, timezone: result.account.timezone, accessStatus: result.account.accessStatus }
         : null,
@@ -67,5 +78,30 @@ export async function POST(request: Request) {
   } catch (error) {
     logger.error("Meta account sync failed", { accountId: parsed.data.accountId });
     return jsonResponse({ ok: false, error: toSafeUserMessage(error) }, { status: 502 });
+  }
+}
+
+async function runPersistedSyncIfConfigured(
+  provider: ReturnType<typeof createConfiguredMetaAdsProvider>,
+  accountId: string,
+  range: { since: string; until: string },
+  scope: { providerMode: "mock" | "graph_api"; apiVersion: string; includeBreakdowns: boolean }
+) {
+  try {
+    const db = getDatabase();
+    const { agencyId, clientId } = await ensureDefaultScope(db);
+    const { result, runId } = await runPersistedSync(db, provider, accountId, range, { agencyId, clientId, ...scope }, { includeBreakdowns: scope.includeBreakdowns });
+    return { result, runId, persisted: true as const };
+  } catch (error) {
+    if (error instanceof Error && /DATABASE_URL|No agency available/.test(error.message)) {
+      // No database configured: preserve the M4 in-memory sync behavior.
+      const result = await syncAccount(provider, accountId, range, {}, {
+        providerName: scope.providerMode === "graph_api" ? "graph-api" : "mock",
+        apiVersion: scope.apiVersion,
+        includeBreakdowns: scope.includeBreakdowns
+      });
+      return { result, runId: null as string | null, persisted: false as const };
+    }
+    throw error;
   }
 }

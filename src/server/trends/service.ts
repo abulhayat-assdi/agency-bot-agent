@@ -1,5 +1,12 @@
 import { aggregateSourceMetrics } from "@/server/analytics/metrics/aggregate";
 import { compareMetric, detectAnomalies, evaluateDataSufficiency, rankEntities, type AnalyticsMetricSet, type MetricComparison } from "@/server/analytics";
+import {
+  fetchPersistedHierarchy,
+  fetchPersistedInsightRows,
+  findPersistedAccount,
+  getAnalyticsDb,
+  listPersistedAccounts
+} from "@/server/analytics/persisted/store";
 import { createMockMetaAdsProvider, type MetaAd, type MetaAdAccount, type MetaAdSet, type MetaCampaign, type MetaEntityLevel, type MetaInsightRow } from "@/server/meta";
 import { previousEquivalentPeriod, resolveDatePreset, type DateRangePreset, type ReportingDateRange } from "@/lib/dates/reporting";
 
@@ -99,7 +106,48 @@ function hrefFor(level: ComparedEntity["level"], id: string) {
   return `/ads/${id}`;
 }
 
+async function loadPersistedAccounts(): Promise<MetaAdAccount[] | null> {
+  const db = getAnalyticsDb();
+  if (!db) return null;
+  try {
+    const contexts = await listPersistedAccounts(db);
+    return contexts ? contexts.map((context) => context.account) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function listEntities(accountId: string, level: ComparedEntity["level"]) {
+  const db = getAnalyticsDb();
+  if (db) {
+    try {
+      const context = await findPersistedAccount(db, accountId);
+      if (context) {
+        const hierarchy = await fetchPersistedHierarchy(db, context.account, context.dbRowId);
+        if (hierarchy) {
+          if (level === "campaign") {
+            return hierarchy.campaigns.map((campaign) => ({ id: campaign.id, name: campaign.name, parentName: undefined as string | undefined, status: campaign.effectiveStatus }));
+          }
+          if (level === "adset") {
+            return hierarchy.adSets.map((adSet) => ({
+              id: adSet.id,
+              name: adSet.name,
+              parentName: hierarchy.campaigns.find((campaign) => campaign.id === adSet.campaignId)?.name,
+              status: adSet.effectiveStatus
+            }));
+          }
+          return hierarchy.ads.map((ad) => ({
+            id: ad.id,
+            name: ad.name,
+            parentName: hierarchy.adSets.find((adSet) => adSet.id === ad.adSetId)?.name,
+            status: ad.effectiveStatus
+          }));
+        }
+      }
+    } catch {
+      // Fall through to the mock provider.
+    }
+  }
   const provider = createMockMetaAdsProvider();
   const campaigns = await fetchAllPages<MetaCampaign>((after) => provider.listCampaigns(accountId, { limit: 100, after }));
 
@@ -132,6 +180,18 @@ async function listEntities(accountId: string, level: ComparedEntity["level"]) {
 }
 
 async function insightsFor(accountId: string, level: MetaEntityLevel, range: ReportingDateRange, entityIds?: string[]) {
+  const db = getAnalyticsDb();
+  if (db) {
+    try {
+      const context = await findPersistedAccount(db, accountId);
+      if (context) {
+        const rows = await fetchPersistedInsightRows(db, { accountDbId: context.dbRowId, account: context.account, level, entityKeys: entityIds, range });
+        if (rows) return rows;
+      }
+    } catch {
+      // Fall through to the mock provider.
+    }
+  }
   const provider = createMockMetaAdsProvider();
   return fetchAllPages<MetaInsightRow>((after) =>
     provider.getInsights({ accountId, level, entityIds, dateRange: range, limit: 100, after })
@@ -160,10 +220,12 @@ function comparisonDirection(metricKey: ComparisonMetricKey) {
 
 export async function getTrendDashboardData(query: TrendQuery = {}): Promise<TrendDashboardData> {
   const provider = createMockMetaAdsProvider();
-  const accounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
+  const mockAccounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
+  const persistedAccounts = await loadPersistedAccounts();
+  const accounts = persistedAccounts ?? mockAccounts;
   const selectedAccount = accounts.find((account) => account.id === query.accountId) ?? accounts[0];
 
-  if (!selectedAccount) throw new Error("No mock accounts available for trends");
+  if (!selectedAccount) throw new Error("No ad accounts available for trends");
 
   const entityLevel = normalizeLevel(query.entityLevel);
   const metricKey = normalizeMetric(query.metricKey);
@@ -234,7 +296,7 @@ export async function getTrendDashboardData(query: TrendQuery = {}): Promise<Tre
     accountAnomalies: detectAnomalies(accountMetrics, previousAccountMetrics),
     dailyTrend: buildDailyTrend(accountRows),
     caveats: [
-      "Trends and comparisons use deterministic mock Meta data until live read-only Meta ingestion is implemented.",
+      "Trends and comparisons use persisted PostgreSQL data when an account has synced, otherwise deterministic mock Meta data.",
       "Percentage change is unavailable when the comparison period value is zero or unavailable.",
       "Rankings exclude entities where the selected metric is unavailable instead of treating unavailable as zero.",
       `Date boundaries use the selected account timezone: ${selectedAccount.timezone}. Currency: ${selectedAccount.currency}.`

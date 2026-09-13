@@ -58,6 +58,12 @@ Milestone 1 uses npm with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style pri
 - Verify integration from Settings → Meta integration with Test Connection, Discover Ad Accounts, and Sync Account, or via `/api/meta/health?live=true`, `/api/meta/accounts`, and `/api/meta/sync`.
 - Optional live smoke test (explicit only, never in CI): set `META_LIVE_TEST=true` with a valid token, then run `npm run meta:live-smoke`. It checks `/me`, `/me/adaccounts`, and one Insights request without printing secrets.
 
+## Persisted analytics (PostgreSQL is the source of truth)
+
+- `POST /api/meta/sync` persists normalized Meta data through Drizzle repositories when `DATABASE_URL` is configured (falls back to in-memory sync otherwise): hierarchy, `metric_daily`, `breakdown_metric_daily`, `raw_ingestion_records`, `sync_runs`, `sync_errors`, and `data_availability` — all idempotent upserts.
+- Dashboard, trends, breakdowns, deep reports, and AI analyst tools read persisted PostgreSQL rows first and fall back to deterministic mock data only when an account has never synced. Set `ANALYTICS_SOURCE=mock` to force mock reads (used for deterministic tests).
+- Source metrics are stored exactly (numerics as decimal strings, counts as integers, missing stays null); CTR/CPC/CPM/frequency/ROAS are derived at read time by the deterministic engine. Meta-returned derived values are kept in `sourceFields` for provenance only.
+
 ## Security
 
 Never commit real `.env` files or secrets. Use `.env.example` placeholders only.
