@@ -1,3 +1,43 @@
+# Production-safe Compose topology for Coolify deployment.
+#
+# All secrets and environment-specific values resolve from the runtime
+# environment (Coolify service env vars or a local .env file, which is
+# gitignored). No real credential is stored in this file — only variable
+# references with safe non-secret defaults. Mandatory secrets use the
+# ${VAR:?message} form so misconfigured deploys fail fast with a clear error
+# instead of booting insecurely.
+#
+# Service model (unchanged): web + worker + scheduler share one image with
+# different start commands; migrate runs Drizzle migrations pre-deploy;
+# postgres/redis are internal only (no published ports, no public domains).
+
+x-app-env: &app-env
+  APP_ENV: production
+  APP_URL: ${APP_URL:-http://localhost:3000}
+  APP_NAME: ${APP_NAME:-AI Meta Ads Intelligence Platform}
+  PREVIEW_CROSS_SITE_COOKIES: ${PREVIEW_CROSS_SITE_COOKIES:-false}
+  ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-admin@example.com}
+  # Analytics source: persisted-first by default; set ANALYTICS_SOURCE=mock
+  # only for explicitly labeled demo environments.
+  ANALYTICS_SOURCE: ${ANALYTICS_SOURCE:-db}
+  EMAIL_PROVIDER: ${EMAIL_PROVIDER:-mock}
+  EMAIL_FROM: ${EMAIL_FROM:-}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+  # Meta provider is selectable (mock for safe local boot, graph-api for live
+  # read-only reporting). Never hardcoded.
+  META_PROVIDER: ${META_PROVIDER:-mock}
+  META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-v26.0}
+  META_APP_ID: ${META_APP_ID:-}
+  META_APP_SECRET: ${META_APP_SECRET:-}
+  META_SYSTEM_USER_ACCESS_TOKEN: ${META_SYSTEM_USER_ACCESS_TOKEN:-}
+  BACKFILL_CHUNK_DAYS: ${BACKFILL_CHUNK_DAYS:-7}
+  BACKFILL_MAX_DAYS: ${BACKFILL_MAX_DAYS:-400}
+  META_INITIAL_SYNC_DAYS: ${META_INITIAL_SYNC_DAYS:-30}
+  META_INCREMENTAL_LOOKBACK_DAYS: ${META_INCREMENTAL_LOOKBACK_DAYS:-3}
+  SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-60}
+
 services:
   web:
     build:
@@ -6,17 +46,13 @@ services:
     ports:
       - "3000:3000"
     environment:
-      APP_ENV: production
-      APP_URL: http://localhost:3000
-      APP_NAME: AI Meta Ads Intelligence Platform
-      SESSION_SECRET: replace-with-a-long-random-secret-at-runtime
-      ADMIN_BOOTSTRAP_EMAIL: admin@example.com
-      ADMIN_BOOTSTRAP_PASSWORD_HASH: replace-with-bcrypt-password-hash-at-runtime
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/meta_ads_intelligence
-      REDIS_URL: redis://redis:6379
-      META_PROVIDER: mock
-      META_GRAPH_API_VERSION: v26.0
-      EMAIL_PROVIDER: mock
+      <<: *app-env
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required - set a long random value in Coolify}
+      ADMIN_BOOTSTRAP_PASSWORD_HASH: ${ADMIN_BOOTSTRAP_PASSWORD_HASH:-}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - it must match the postgres service password}@postgres:5432/meta_ads_intelligence
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      META_SYNC_CONCURRENCY: ${META_SYNC_CONCURRENCY:-2}
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,17 +71,13 @@ services:
       context: .
     command: npm run start:worker
     environment:
-      APP_ENV: production
-      APP_URL: http://localhost:3000
-      APP_NAME: AI Meta Ads Intelligence Platform
-      SESSION_SECRET: replace-with-a-long-random-secret-at-runtime
-      ADMIN_BOOTSTRAP_EMAIL: admin@example.com
-      ADMIN_BOOTSTRAP_PASSWORD_HASH: replace-with-bcrypt-password-hash-at-runtime
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/meta_ads_intelligence
-      REDIS_URL: redis://redis:6379
-      META_PROVIDER: mock
-      META_GRAPH_API_VERSION: v26.0
-      EMAIL_PROVIDER: mock
+      <<: *app-env
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required - set a long random value in Coolify}
+      ADMIN_BOOTSTRAP_PASSWORD_HASH: ${ADMIN_BOOTSTRAP_PASSWORD_HASH:-}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - it must match the postgres service password}@postgres:5432/meta_ads_intelligence
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-5}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      META_SYNC_CONCURRENCY: ${META_SYNC_CONCURRENCY:-2}
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,17 +90,12 @@ services:
       context: .
     command: npm run start:scheduler
     environment:
-      APP_ENV: production
-      APP_URL: http://localhost:3000
-      APP_NAME: AI Meta Ads Intelligence Platform
-      SESSION_SECRET: replace-with-a-long-random-secret-at-runtime
-      ADMIN_BOOTSTRAP_EMAIL: admin@example.com
-      ADMIN_BOOTSTRAP_PASSWORD_HASH: replace-with-bcrypt-password-hash-at-runtime
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/meta_ads_intelligence
-      REDIS_URL: redis://redis:6379
-      META_PROVIDER: mock
-      META_GRAPH_API_VERSION: v26.0
-      EMAIL_PROVIDER: mock
+      <<: *app-env
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required - set a long random value in Coolify}
+      ADMIN_BOOTSTRAP_PASSWORD_HASH: ${ADMIN_BOOTSTRAP_PASSWORD_HASH:-}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - it must match the postgres service password}@postgres:5432/meta_ads_intelligence
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-2}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,7 +111,7 @@ services:
     profiles: ["tools"]
     environment:
       APP_ENV: production
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/meta_ads_intelligence
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - it must match the postgres service password}@postgres:5432/meta_ads_intelligence
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,9 +119,13 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
+      # POSTGRES_PASSWORD must be alphanumeric (URI-safe): it is interpolated
+      # raw into DATABASE_URL below, and Compose has no percent-encoding
+      # function, so reserved characters (@ : / ? # % & =) would corrupt the
+      # connection string. deploy:check enforces this when the variable is set.
       POSTGRES_DB: meta_ads_intelligence
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required - set a strong alphanumeric value in Coolify}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

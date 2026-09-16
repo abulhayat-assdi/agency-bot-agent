@@ -39,4 +39,21 @@ if (failed.length > 0) {
   throw new Error(`Deployment readiness checks failed: ${failed.join("; ")}`);
 }
 
+// POSTGRES_PASSWORD is interpolated raw into DATABASE_URL (Compose has no
+// percent-encoding function), so reserved URI characters (@ : / ? # % & =)
+// would silently corrupt the connection string. Enforce an alphanumeric,
+// reasonably long password whenever one is provided; unset means this check
+// is skipped (e.g. CI without database secrets).
+const configuredDbPassword = process.env.POSTGRES_PASSWORD;
+if (configuredDbPassword !== undefined && configuredDbPassword !== "") {
+  if (!/^[A-Za-z0-9]+$/.test(configuredDbPassword)) {
+    throw new Error(
+      "Deployment readiness checks failed: POSTGRES_PASSWORD must be alphanumeric (URI-safe) because it is interpolated into DATABASE_URL"
+    );
+  }
+  if (configuredDbPassword.length < 12) {
+    throw new Error("Deployment readiness checks failed: POSTGRES_PASSWORD must be at least 12 characters for production use");
+  }
+}
+
 console.log(`Deployment readiness checks passed (${checks.length}/${checks.length})`);
