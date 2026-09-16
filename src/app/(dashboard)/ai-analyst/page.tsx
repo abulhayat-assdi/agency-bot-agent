@@ -6,8 +6,11 @@ import { AiControls } from "@/components/ai/ai-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getDatabase, type Database } from "@/server/db/client";
+import { getRequestAgency } from "@/server/auth/request-context";
 import { getDashboardData } from "@/server/dashboard/mock-dashboard-data";
 import { answerAiQuestion } from "@/server/ai";
+import { AiConversationRepository, AiMessageRepository } from "@/server/repositories/ai-repository";
 import type { DateRangePreset } from "@/lib/dates/reporting";
 
 export const dynamic = "force-dynamic";
@@ -41,8 +44,49 @@ export default async function AiAnalystPage({ searchParams }: PageProps) {
   const accountId = readParam(params, "accountId") ?? dashboard.accounts[0]?.id;
   const adId = readParam(params, "adId");
   const preset = normalizePreset(readParam(params, "preset"));
+  const requestedConversationId = readParam(params, "conversationId");
   const shouldAnswer = Boolean(readParam(params, "q") || adId);
-  const result = shouldAnswer ? await answerAiQuestion({ question, accountId, adId, preset }) : null;
+
+  // Persisted memory when a database is available; otherwise answer statelessly.
+  let persistence: { db: Database; agencyId: string; userId?: string } | null = null;
+  try {
+    const db = getDatabase();
+    const scope = await getRequestAgency(db);
+    persistence = { db, agencyId: scope.agencyId, userId: scope.userId ?? undefined };
+  } catch {
+    persistence = null;
+  }
+
+  const result =
+    shouldAnswer
+      ? await answerAiQuestion(
+          { question, accountId, adId, preset },
+          undefined,
+          persistence ? { persistence: { ...persistence, conversationId: requestedConversationId } } : {}
+        ).catch(() => null)
+      : null;
+  const activeConversationId = result?.conversationId ?? requestedConversationId ?? undefined;
+
+  let conversations: Array<{ id: string; title: string; updatedAt: string }> = [];
+  let thread: Array<{ id: string; role: string; content: string; createdAt: string }> = [];
+  if (persistence) {
+    try {
+      const repository = new AiConversationRepository({ db: persistence.db, agencyId: persistence.agencyId });
+      const rows = await repository.list({ userId: persistence.userId, limit: 20 });
+      conversations = rows.map((row) => ({ id: row.id, title: row.title, updatedAt: row.updatedAt.toISOString() }));
+      if (activeConversationId) {
+        const messages = new AiMessageRepository({ db: persistence.db, agencyId: persistence.agencyId });
+        const messageRows = (await messages.listByConversation(activeConversationId, 50)) ?? [];
+        const chronological = [...messageRows].reverse();
+        // Drop the pair just created by this request to avoid duplicating the fresh answer below.
+        const visible = result && chronological.length >= 2 ? chronological.slice(0, -2) : chronological;
+        thread = visible.map((row) => ({ id: row.id, role: row.role, content: row.content, createdAt: row.createdAt.toISOString() }));
+      }
+    } catch {
+      conversations = [];
+      thread = [];
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -60,9 +104,46 @@ export default async function AiAnalystPage({ searchParams }: PageProps) {
         </div>
       </section>
 
-      <AiControls accounts={dashboard.accounts} defaultQuestion={question} selectedAccountId={accountId} selectedPreset={preset} />
+      <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Conversations</CardTitle>
+            <CardDescription>{conversations.length > 0 ? "Continue a previous analysis." : "No saved conversations yet."}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button asChild variant="outline" size="sm" className="w-full">
+              <Link href="/ai-analyst">New conversation</Link>
+            </Button>
+            {conversations.map((conversation) => (
+              <Link
+                key={conversation.id}
+                href={`/ai-analyst?conversationId=${encodeURIComponent(conversation.id)}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ""}&preset=${preset}`}
+                className={`block rounded-2xl border p-3 text-sm transition hover:bg-muted ${conversation.id === activeConversationId ? "border-primary/50 bg-muted" : "border-border/80"}`}
+              >
+                <span className="font-medium">{conversation.title}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">{conversation.updatedAt.slice(0, 16).replace("T", " ")}</span>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
 
-      <div className="grid gap-3 md:grid-cols-5">
+        <div className="space-y-6">
+          <AiControls accounts={dashboard.accounts} defaultQuestion={question} selectedAccountId={accountId} selectedPreset={preset} conversationId={activeConversationId} />
+          {thread.length > 0 ? (
+            <div className="space-y-3">
+              {thread.map((message) => (
+                <div
+                  key={message.id}
+                  className={`whitespace-pre-wrap rounded-3xl border p-4 text-sm leading-7 ${message.role === "user" ? "border-border/80 bg-card/70" : "border-border/80 bg-card/70 dark:border-white/10 dark:bg-slate-950/60"}`}
+                >
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{message.role}</p>
+                  {message.content}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 md:grid-cols-5">
         {suggestedQuestions.map((suggestion) => (
           <Button key={suggestion} asChild variant="outline" size="sm" className="h-auto min-h-10 whitespace-normal py-2 text-left">
             <Link href={`/ai-analyst?q=${encodeURIComponent(suggestion)}&accountId=${encodeURIComponent(accountId ?? "")}&preset=${preset}`}>{suggestion}</Link>
@@ -106,6 +187,8 @@ export default async function AiAnalystPage({ searchParams }: PageProps) {
           </CardContent>
         </Card>
       )}
+        </div>
+      </div>
     </div>
   );
 }

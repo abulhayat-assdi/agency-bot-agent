@@ -20,18 +20,23 @@ const timezone = process.env.SYNC_TIMEZONE ?? "UTC";
 // Incremental schedule re-reads today plus a lookback window: Meta data stays mutable for a few days.
 const dateRange = incrementalSyncRange(timezone, getAppConfig().META_INCREMENTAL_LOOKBACK_DAYS);
 
-await scheduleRecurringAllAccountSync({
-  agencyId,
-  dateRange,
-  rollingDatePreset: "last_3_days",
-  timezone,
-  includeBreakdowns: false,
-  traceId: randomUUID()
-});
+// No top-level await: the production image runs scripts as CJS through tsx.
+async function main() {
+  await scheduleRecurringAllAccountSync({
+    agencyId,
+    dateRange,
+    rollingDatePreset: "last_3_days",
+    timezone,
+    includeBreakdowns: false,
+    traceId: randomUUID()
+  });
 
-logger.info("Recurring sync schedule registered", {
-  queue: readiness.queueName,
-  agencyId,
-  intervalMinutes: readiness.repeatableSyncIntervalMinutes,
-  timezone
-});
+  logger.info("Recurring sync schedule registered", {
+    queue: readiness.queueName,
+    agencyId,
+    intervalMinutes: readiness.repeatableSyncIntervalMinutes,
+    timezone
+  });
+}
+
+void main();

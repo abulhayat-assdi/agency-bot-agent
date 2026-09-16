@@ -23,6 +23,12 @@ export class AdAccountRepository {
     });
   }
 
+  findById(id: string) {
+    return this.context.db.query.adAccounts.findFirst({
+      where: and(eq(adAccounts.agencyId, this.context.agencyId), eq(adAccounts.id, id), isNull(adAccounts.archivedAt))
+    });
+  }
+
   async upsert(input: Omit<NewAdAccount, "agencyId" | "provider">) {    const [account] = await this.context.db
       .insert(adAccounts)
       .values({ ...input, agencyId: this.context.agencyId, provider: "meta" })

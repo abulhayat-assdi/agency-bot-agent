@@ -17,6 +17,7 @@ import {
 } from "@/server/sync/chunks";
 import { ensureDefaultScope } from "@/server/sync/meta-persistence";
 import { isRunStale, staleRunRemediation } from "@/server/sync/run-health";
+import { toUuidOrNull } from "@/server/repositories/types";
 
 export class ApiError extends Error {
   constructor(
@@ -101,7 +102,9 @@ export async function createParentRun(
       adAccountId: input.adAccountId,
       providerMode: input.providerMode,
       type: input.type,
-      requestedByUserId: input.requestedByUserId,
+      // Session actor ids are not DB users (no admin_users row); coerce so the
+      // uuid foreign key never rejects a run creation.
+      requestedByUserId: toUuidOrNull(input.requestedByUserId),
       checkpoint: { ...checkpoint, includeBreakdowns: input.includeBreakdowns ?? true },
       stats: { chunks: checkpointSummary(checkpoint) }
     },

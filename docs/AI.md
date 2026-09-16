@@ -2,6 +2,10 @@
 
 Milestone 11 implements a grounded, read-only AI analyst surface. The analyst answers only after application-controlled analytics tools return evidence. If `OPENAI_API_KEY` is configured, the evidence is sent to OpenAI with strict instructions; otherwise the app returns a deterministic grounded response using the same evidence contract.
 
+## Conversation memory (Milestone 9)
+
+Conversations persist in `ai_conversations` with messages in `ai_messages` (role, content, tool calls, grounded context, provider, model, and a `usage` object). Token counts come straight from the provider response and stay `null` when the provider omits them — unknown usage is never zero. Continuing a conversation forwards at most the last 10 user/assistant messages (tool payloads stay in storage) with total characters capped, so history cannot create unbounded token usage. Surfaces: the `/ai-analyst` sidebar (list, continue, new), `POST /api/ai/analyst` with optional `conversationId`, and `GET /api/ai/conversations[/[id]]`. Every exchange is agency-scoped; cross-agency conversation IDs return 404.
+
 ## Flow
 
 ```text

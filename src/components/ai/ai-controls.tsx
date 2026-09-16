@@ -10,9 +10,10 @@ const presets: Array<{ value: DateRangePreset; label: string }> = [
   { value: "last_month", label: "Last month" }
 ];
 
-export function AiControls({ accounts, defaultQuestion, selectedAccountId, selectedPreset }: { accounts: MetaAdAccount[]; defaultQuestion: string; selectedAccountId?: string; selectedPreset: DateRangePreset }) {
+export function AiControls({ accounts, defaultQuestion, selectedAccountId, selectedPreset, conversationId }: { accounts: MetaAdAccount[]; defaultQuestion: string; selectedAccountId?: string; selectedPreset: DateRangePreset; conversationId?: string }) {
   return (
     <form className="grid gap-4 rounded-3xl border border-border/80 bg-card/80 dark:border-white/10 dark:bg-slate-900/70 p-4 lg:grid-cols-[1fr_180px_180px_auto]" action="/ai-analyst">
+      {conversationId ? <input type="hidden" name="conversationId" value={conversationId} /> : null}
       <label className="space-y-2">
         <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Question</span>
         <input

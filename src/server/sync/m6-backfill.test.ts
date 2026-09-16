@@ -6,6 +6,7 @@ import { MetaApiError } from "../meta/errors";
 import {
   assertPayloadHasNoSecrets,
   assertRunTransition,
+  backfillPlannerJobId,
   backfillPlannerPayloadSchema,
   backoffDelayMs,
   canTransitionRun,
@@ -90,6 +91,9 @@ describe("M6 deterministic job IDs and payload safety", () => {
     expect(chunkJobId("act_1", "backfill", "2026-09-01", "2026-09-07")).toBe(a);
     expect(chunkJobId("act_1", "backfill", "2026-09-08", "2026-09-14")).not.toBe(a);
     expect(chunkJobId("act_2", "backfill", "2026-09-01", "2026-09-07")).not.toBe(a);
+    // BullMQ rejects custom IDs containing ":" — live verification caught this.
+    expect(a).not.toContain(":");
+    expect(backfillPlannerJobId("123e4567-e89b-12d3-a456-426614174000")).not.toContain(":");
   });
 
   it("rejects payloads carrying credential fields", () => {

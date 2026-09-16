@@ -208,11 +208,12 @@ export function remediationForKind(kind: string): string {
 // --- Deterministic job IDs and payload validation ---
 
 export function chunkJobId(metaAccountId: string, syncKind: SyncKind, since: string, until: string) {
-  return `chunk:${metaAccountId}:${syncKind}:${since}:${until}`;
+  // BullMQ forbids ":" in custom job IDs (it separates Redis key segments).
+  return `chunk|${metaAccountId}|${syncKind}|${since}|${until}`;
 }
 
 export function backfillPlannerJobId(parentRunId: string) {
-  return `backfill-planner:${parentRunId}`;
+  return `backfill-planner|${parentRunId}`;
 }
 
 const safePayloadBase = z.object({

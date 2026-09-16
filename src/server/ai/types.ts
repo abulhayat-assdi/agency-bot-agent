@@ -51,6 +51,19 @@ export type GroundedAiContext = {
 export type GroundedAiAnswer = {
   answer: string;
   context: GroundedAiContext;
+  conversationId?: string;
+};
+
+export type AiUsage = {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  latencyMs: number | null;
+};
+
+export type AiProviderMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
 };
 
 export type SerializableMetricSet = Pick<AnalyticsMetricSet, "spend" | "impressions" | "clicks" | "ctr" | "cpc" | "cpa" | "conversions" | "conversionValue" | "roas">;

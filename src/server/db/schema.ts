@@ -440,6 +440,9 @@ export const aiMessages = pgTable(
     content: text("content").notNull(),
     toolCalls: jsonb("tool_calls_json").$type<Record<string, unknown>[]>().notNull().default([]),
     groundedContext: jsonb("grounded_context_json").$type<Record<string, unknown>>().notNull().default({}),
+    provider: varchar("provider", { length: 40 }),
+    model: varchar("model", { length: 120 }),
+    usage: jsonb("usage_json").$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [index("ai_messages_conversation_idx").on(table.conversationId, table.createdAt)]
@@ -479,6 +482,9 @@ export const emailReports = pgTable(
     enabled: boolean("enabled").notNull().default(false),
     schedule: jsonb("schedule_json").$type<Record<string, unknown>>().notNull().default({}),
     timezone: varchar("timezone", { length: 80 }).notNull(),
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    lastStatus: varchar("last_status", { length: 40 }),
     ...timestamps,
     ...archiveColumns
   },
@@ -504,8 +510,10 @@ export const emailDeliveryLogs = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     emailReportId: uuid("email_report_id").notNull().references(() => emailReports.id, { onDelete: "cascade" }),
     status: deliveryStatusEnum("status").notNull().default("queued"),
+    provider: varchar("provider", { length: 20 }),
     providerMessageId: text("provider_message_id"),
     recipientCount: integer("recipient_count").notNull().default(0),
+    attempt: integer("attempt").notNull().default(1),
     safeError: text("safe_error"),
     renderedSubject: text("rendered_subject"),
     sentAt: timestamp("sent_at", { withTimezone: true }),
@@ -556,6 +564,18 @@ export type Ad = typeof ads.$inferSelect;
 export type NewAd = typeof ads.$inferInsert;
 export type MetricDaily = typeof metricDaily.$inferSelect;
 export type NewMetricDaily = typeof metricDaily.$inferInsert;
+export type EmailReport = typeof emailReports.$inferSelect;
+export type NewEmailReport = typeof emailReports.$inferInsert;
+export type EmailRecipientRow = typeof emailRecipients.$inferSelect;
+export type NewEmailRecipient = typeof emailRecipients.$inferInsert;
+export type EmailDeliveryLogRow = typeof emailDeliveryLogs.$inferSelect;
+export type NewEmailDeliveryLog = typeof emailDeliveryLogs.$inferInsert;
+export type AiConversation = typeof aiConversations.$inferSelect;
+export type NewAiConversation = typeof aiConversations.$inferInsert;
+export type AiMessage = typeof aiMessages.$inferSelect;
+export type NewAiMessage = typeof aiMessages.$inferInsert;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;
 export type SyncRun = typeof syncRuns.$inferSelect;
 export type NewSyncRun = typeof syncRuns.$inferInsert;
 export type SyncError = typeof syncErrors.$inferSelect;

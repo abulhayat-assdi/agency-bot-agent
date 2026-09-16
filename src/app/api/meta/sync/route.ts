@@ -13,6 +13,8 @@ import { checkpointSummary, pendingChunks } from "@/server/sync/chunks";
 import { syncAccount } from "@/server/sync/meta-sync";
 import { ensureDefaultScope, runPersistedSync } from "@/server/sync/meta-persistence";
 import { ApiError, createParentRun, resolveAccountContext } from "@/server/sync/run-service";
+import { getRequestSession } from "@/server/auth/request-context";
+import { auditLogSafe } from "@/server/audit/audit-log";
 import { getDatabase } from "@/server/db/client";
 import { logger } from "@/server/observability/logger";
 
@@ -95,6 +97,16 @@ export async function POST(request: Request) {
       });
       logger.info("Manual sync enqueued via admin API", { accountId: account.metaAccountId, runId: run.id });
       const summary = checkpointSummary(checkpoint);
+      const session = await getRequestSession();
+      await auditLogSafe({
+        db,
+        agencyId,
+        userId: session?.user.id ?? null,
+        action: "meta.sync.trigger",
+        resourceType: "sync_run",
+        resourceId: run.id,
+        metadata: { metaAccountId: account.metaAccountId, dateStart: range.since, dateEnd: range.until }
+      });
       return jsonResponse({
         ok: true,
         status: "queued",
@@ -123,6 +135,24 @@ export async function POST(request: Request) {
       persisted: persisted.persisted,
       runId: persisted.runId
     });
+    if (persisted.persisted && persisted.runId) {
+      try {
+        const auditDb = getDatabase();
+        const auditScope = await ensureDefaultScope(auditDb);
+        const session = await getRequestSession();
+        await auditLogSafe({
+          db: auditDb,
+          agencyId: auditScope.agencyId,
+          userId: session?.user.id ?? null,
+          action: "meta.sync.complete",
+          resourceType: "sync_run",
+          resourceId: persisted.runId,
+          metadata: { accountId: parsed.data.accountId, status: result.status }
+        });
+      } catch {
+        // Audit side-channel; completion already recorded in sync_runs.
+      }
+    }
     return jsonResponse({
       ok: result.status !== "failed",
       status: result.status,

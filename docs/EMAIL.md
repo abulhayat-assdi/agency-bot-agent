@@ -74,6 +74,6 @@ The route is protected by the existing authenticated API route protection.
 
 Provider failures become `failed` delivery log records with safe error messages. Disabled reports are marked `skipped` without calling the provider. Invalid recipient/configuration data is rejected during render/send validation.
 
-## Current limitation
+## Persistence (Milestone 9)
 
-Schedules and delivery logs are deterministic mock-backed data in this milestone. The database schema already includes `email_reports`, `email_recipients`, and `email_delivery_logs`; durable editing and persistence can be wired during later hardening/live deployment work.
+Email reporting is persisted in PostgreSQL: `email_reports` (with `next_run_at`, `last_run_at`, `last_status`), `email_recipients` (unique per report+email), and `email_delivery_logs` (provider, attempt number, safe errors). The scheduler claims due reports atomically, sends with bounded retries, records every attempt, and advances the next run. The `/email-reports` page manages persisted reports (create/enable/send/remove/recipients) when `DATABASE_URL` is configured and falls back to demo fixtures otherwise. Full CRUD is available at `/api/email-reports`, `/api/email-reports/[id]`, and the recipients sub-routes.

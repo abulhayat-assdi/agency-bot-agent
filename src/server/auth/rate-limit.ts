@@ -1,3 +1,8 @@
+import type IORedis from "ioredis";
+
+import { createRedisConnection } from "@/server/jobs/redis";
+import { logger } from "@/server/observability/logger";
+
 export type RateLimitResult = {
   allowed: boolean;
   remaining: number;
@@ -49,9 +54,64 @@ export class InMemoryLoginRateLimiter implements LoginRateLimiter {
 
 const fallbackLimiter = new InMemoryLoginRateLimiter();
 
+/**
+ * Redis-backed login throttling shared across web instances. Falls back to
+ * the process-local limiter without Redis. On Redis failure it fails OPEN for
+ * availability (failed passwords still don't authenticate) and logs.
+ */
+export class RedisLoginRateLimiter implements LoginRateLimiter {
+  constructor(
+    private readonly getClient: () => IORedis,
+    private readonly maxAttempts = MAX_ATTEMPTS,
+    private readonly windowMs = WINDOW_MS
+  ) {}
+
+  private keyFor(key: string) {
+    return `rl:login:${key}`;
+  }
+
+  async check(key: string, now = Date.now()): Promise<RateLimitResult> {
+    try {
+      const client = this.getClient();
+      const [countRaw, ttlRaw] = (await client.eval(
+        `local current = redis.call('INCR', KEYS[1])
+         if current == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+         return {current, redis.call('PTTL', KEYS[1])}`,
+        1,
+        this.keyFor(key),
+        String(this.windowMs)
+      )) as [number, number];
+      const count = Number(countRaw);
+      const ttl = Number.isFinite(ttlRaw) && ttlRaw > 0 ? ttlRaw : this.windowMs;
+      return {
+        allowed: count <= this.maxAttempts,
+        remaining: Math.max(this.maxAttempts - count, 0),
+        resetAt: now + ttl
+      };
+    } catch (error) {
+      logger.warn("Redis login limiter unavailable; failing open", {
+        errorName: error instanceof Error ? error.name : "unknown"
+      });
+      return { allowed: true, remaining: this.maxAttempts, resetAt: now + this.windowMs };
+    }
+  }
+
+  async reset(key: string): Promise<void> {
+    try {
+      await this.getClient().del(this.keyFor(key));
+    } catch {
+      // Best effort only.
+    }
+  }
+}
+
+let redisLoginClient: IORedis | null = null;
+
 export function getLoginRateLimiter(): LoginRateLimiter {
-  // Production Redis-backed implementation is intentionally deferred until the Redis/BullMQ milestone.
-  // Keeping this behind an interface prevents auth code from being tied to process-local state.
+  if (process.env.REDIS_URL) {
+    if (!redisLoginClient) redisLoginClient = createRedisConnection();
+    return new RedisLoginRateLimiter(() => redisLoginClient as IORedis);
+  }
   return fallbackLimiter;
 }
 

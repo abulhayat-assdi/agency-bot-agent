@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { applySecurityHeaders } from "@/server/security/headers";
 import { SyncRepository } from "@/server/repositories/sync-repository";
+import { getRequestSession } from "@/server/auth/request-context";
+import { auditLogSafe } from "@/server/audit/audit-log";
 import { ApiError, requireDb, resolveScope } from "@/server/sync/run-service";
 import { logger } from "@/server/observability/logger";
 
@@ -27,6 +29,16 @@ export async function POST(_request: Request, context: { params: Promise<{ runId
     }
     await sync.markCancelled(runId);
     logger.info("Sync run cancelled by admin", { runId });
+    const session = await getRequestSession();
+    await auditLogSafe({
+      db,
+      agencyId,
+      userId: session?.user.id ?? null,
+      action: "meta.sync.cancel",
+      resourceType: "sync_run",
+      resourceId: runId,
+      metadata: { previousStatus: run.status }
+    });
     return jsonResponse({ ok: true, runId, status: "cancelled" });
   } catch (error) {
     if (error instanceof ApiError) return jsonResponse({ ok: false, error: error.message }, { status: error.status });

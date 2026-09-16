@@ -1,6 +1,12 @@
 import { getAppConfig } from "@/server/config/env";
 import { formatMetric } from "@/components/dashboard/metric-format";
 import { logger } from "@/server/observability/logger";
+import type { Database } from "@/server/db/client";
+import {
+  AiConversationRepository,
+  AiMessageRepository
+} from "@/server/repositories/ai-repository";
+import type { RepositoryContext } from "@/server/repositories/types";
 import {
   getAccountSummaryEvidence,
   getAdAnalysisEvidence,
@@ -10,7 +16,21 @@ import {
   getTopEntitiesEvidence,
   getTrendEvidence
 } from "@/server/ai/tools";
-import type { AiEvidenceBlock, AiIntent, AiQuestionInput, GroundedAiAnswer, GroundedAiContext } from "@/server/ai/types";
+import type { AiEvidenceBlock, AiIntent, AiProviderMessage, AiQuestionInput, AiUsage, GroundedAiAnswer, GroundedAiContext } from "@/server/ai/types";
+
+export const MAX_HISTORY_MESSAGES = 10;
+export const MAX_HISTORY_CHARS = 6000;
+
+export type AiPersistence = {
+  db: Database;
+  agencyId: string;
+  userId?: string;
+  conversationId?: string;
+};
+
+export type AiAnswerOptions = {
+  persistence?: AiPersistence;
+};
 
 const DEFAULT_QUESTION = "Summarize performance and highlight any risks.";
 
@@ -115,10 +135,29 @@ function systemPrompt() {
   ].join("\n");
 }
 
-async function callOpenAi(context: GroundedAiContext, env: Record<string, string | undefined>) {
+type ProviderResult = {
+  content: string | null;
+  usage: AiUsage;
+  model: string;
+};
+
+function toFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function emptyUsage(): AiUsage {
+  return { promptTokens: null, completionTokens: null, totalTokens: null, latencyMs: null };
+}
+
+async function callOpenAi(
+  context: GroundedAiContext,
+  env: Record<string, string | undefined>,
+  history: AiProviderMessage[] = []
+): Promise<ProviderResult | null> {
   const config = getAppConfig(env);
   if (!config.OPENAI_API_KEY) return null;
 
+  const startedAt = Date.now();
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -128,12 +167,10 @@ async function callOpenAi(context: GroundedAiContext, env: Record<string, string
     body: JSON.stringify({
       model: config.OPENAI_MODEL,
       temperature: 0.1,
-      messages: [
-        { role: "system", content: systemPrompt() },
-        { role: "user", content: JSON.stringify(context) }
-      ]
+      messages: [{ role: "system", content: systemPrompt() }, ...history, { role: "user", content: JSON.stringify(context) }]
     })
   });
+  const latencyMs = Date.now() - startedAt;
 
   if (!response.ok) {
     logger.warn("OpenAI analyst request failed; falling back to deterministic grounded response", {
@@ -143,11 +180,53 @@ async function callOpenAi(context: GroundedAiContext, env: Record<string, string
     return null;
   }
 
-  const body = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  return body.choices?.[0]?.message?.content?.trim() || null;
+  const body = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+    model?: string;
+    usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown };
+  };
+  return {
+    content: body.choices?.[0]?.message?.content?.trim() || null,
+    // Token counts come straight from the provider response; unknown stays null, never zero.
+    usage: {
+      promptTokens: toFiniteNumber(body.usage?.prompt_tokens),
+      completionTokens: toFiniteNumber(body.usage?.completion_tokens),
+      totalTokens: toFiniteNumber(body.usage?.total_tokens),
+      latencyMs
+    },
+    model: typeof body.model === "string" && body.model.length > 0 ? body.model : config.OPENAI_MODEL
+  };
 }
 
-export async function answerAiQuestion(input: Partial<AiQuestionInput>, env: Record<string, string | undefined> = process.env): Promise<GroundedAiAnswer> {
+/**
+ * Load bounded conversation history for provider context. Only user/assistant
+ * text is forwarded (tool payloads stay in storage), oldest messages are
+ * dropped first, and total characters are capped to bound token usage.
+ */
+export function buildHistoryMessages(
+  rows: Array<{ role: string; content: string }>,
+  maxMessages: number = MAX_HISTORY_MESSAGES,
+  maxChars: number = MAX_HISTORY_CHARS
+): AiProviderMessage[] {
+  const eligible = rows.filter((row) => row.role === "user" || row.role === "assistant");
+  const windowed = eligible.slice(-maxMessages);
+  const history: AiProviderMessage[] = [];
+  let chars = 0;
+  for (let index = windowed.length - 1; index >= 0; index -= 1) {
+    const row = windowed[index];
+    const content = row.content.slice(0, maxChars);
+    if (chars + content.length > maxChars && history.length > 0) break;
+    chars += content.length;
+    history.unshift({ role: row.role as "user" | "assistant", content });
+  }
+  return history;
+}
+
+export async function answerAiQuestion(
+  input: Partial<AiQuestionInput>,
+  env: Record<string, string | undefined> | undefined = process.env,
+  options: AiAnswerOptions = {}
+): Promise<GroundedAiAnswer> {
   const question = normalizeQuestion(input.question);
   const intent = classifyAiIntent(question, { adId: input.adId });
   const evidence = await collectEvidence({ ...input, question }, intent);
@@ -160,14 +239,58 @@ export async function answerAiQuestion(input: Partial<AiQuestionInput>, env: Rec
     evidence
   };
 
-  const openAiAnswer = await callOpenAi(context, env);
-  const answer = openAiAnswer ?? deterministicAnswer({ ...context, modelMode: "mock-grounded" });
+  const persistence = options.persistence;
+  let history: AiProviderMessage[] = [];
+  let conversationId: string | undefined;
+  let conversations: AiConversationRepository | null = null;
+  let messages: AiMessageRepository | null = null;
+
+  if (persistence) {
+    const repositoryContext: RepositoryContext = { db: persistence.db, agencyId: persistence.agencyId };
+    conversations = new AiConversationRepository(repositoryContext);
+    messages = new AiMessageRepository(repositoryContext);
+    if (persistence.conversationId) {
+      const existing = await conversations.findById(persistence.conversationId);
+      if (!existing) throw new Error("AI conversation not found");
+      conversationId = existing.id;
+      const prior = (await messages.listByConversation(conversationId, MAX_HISTORY_MESSAGES + 5)) ?? [];
+      history = buildHistoryMessages([...prior].reverse());
+    } else {
+      const created = await conversations.create({
+        userId: persistence.userId,
+        title: question.slice(0, 80)
+      });
+      conversationId = created.id;
+    }
+    await messages.add(conversationId, { role: "user", content: question, toolCalls: [], groundedContext: {} });
+  }
+
+  const providerResult = await callOpenAi(context, env, history);
+  const answer = providerResult?.content ?? deterministicAnswer({ ...context, modelMode: "mock-grounded" });
+  const usedOpenAi = Boolean(providerResult?.content);
+
+  if (persistence && conversations && messages && conversationId) {
+    await messages.add(conversationId, {
+      role: "assistant",
+      content: answer,
+      toolCalls: [],
+      groundedContext: {
+        intent,
+        evidence: evidence.map((block) => ({ toolName: block.toolName, title: block.title, scope: block.scope }))
+      },
+      provider: usedOpenAi ? "openai" : "mock-grounded",
+      model: providerResult?.model ?? "deterministic",
+      usage: (usedOpenAi ? providerResult?.usage : emptyUsage()) ?? emptyUsage()
+    });
+    await conversations.touch(conversationId);
+  }
 
   return {
     answer,
     context: {
       ...context,
-      modelMode: openAiAnswer ? "openai" : "mock-grounded"
-    }
+      modelMode: usedOpenAi ? "openai" : "mock-grounded"
+    },
+    ...(conversationId ? { conversationId } : {})
   };
 }

@@ -18,6 +18,8 @@ import {
   resolveScope
 } from "@/server/sync/run-service";
 import { logger } from "@/server/observability/logger";
+import { getRequestSession } from "@/server/auth/request-context";
+import { auditLogSafe } from "@/server/audit/audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +87,16 @@ export async function POST(request: Request) {
         traceId: existing.id
       });
       logger.info("Backfill resume enqueued", { parentRunId: existing.id, accountId: account.metaAccountId });
+      const resumeSession = await getRequestSession();
+      await auditLogSafe({
+        db,
+        agencyId,
+        userId: resumeSession?.user.id ?? null,
+        action: "meta.backfill.trigger",
+        resourceType: "sync_run",
+        resourceId: existing.id,
+        metadata: { metaAccountId: account.metaAccountId, resumed: true }
+      });
       return jsonResponse({ ok: true, runId: existing.id, jobId: job.id ?? null, resumed: true });
     }
 
@@ -117,6 +129,16 @@ export async function POST(request: Request) {
 
     logger.info("Backfill enqueued", { parentRunId: run.id, accountId: account.metaAccountId, totalChunks: checkpoint.chunks.length });
     const summary = checkpointSummary(checkpoint);
+    const backfillSession = await getRequestSession();
+    await auditLogSafe({
+      db,
+      agencyId,
+      userId: backfillSession?.user.id ?? null,
+      action: "meta.backfill.trigger",
+      resourceType: "sync_run",
+      resourceId: run.id,
+      metadata: { metaAccountId: account.metaAccountId, dateStart: parsed.data.dateStart, dateEnd: parsed.data.dateEnd }
+    });
     return jsonResponse({
       ok: true,
       runId: run.id,

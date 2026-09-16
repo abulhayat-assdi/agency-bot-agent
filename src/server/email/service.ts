@@ -6,7 +6,16 @@ import { getDashboardData } from "@/server/dashboard/mock-dashboard-data";
 import { answerAiQuestion } from "@/server/ai";
 import { createEmailProvider, getEmailProviderReadiness } from "@/server/email/provider";
 import { logger } from "@/server/observability/logger";
-import type { EmailDeliveryLog, EmailProvider, EmailReportConfig, EmailReportsDashboardData, RenderedEmailReport } from "@/server/email/types";
+import type { Database } from "@/server/db/client";
+import type { EmailReport as DbEmailReport } from "@/server/db/schema";
+import { AdAccountRepository } from "@/server/repositories/ad-account-repository";
+import {
+  EmailDeliveryLogRepository,
+  EmailRecipientRepository,
+  EmailReportRepository
+} from "@/server/repositories/email-repository";
+import type { RepositoryContext } from "@/server/repositories/types";
+import type { EmailDeliveryLog, EmailProvider, EmailReportConfig, EmailReportsDashboardData, EmailSchedule, RenderedEmailReport } from "@/server/email/types";
 
 const reportConfigSchema = z.object({
   id: z.string().min(1),
@@ -295,3 +304,225 @@ export async function getEmailReportsDashboardData(env: Record<string, string | 
 }
 
 export { nextDeliveryDescription };
+
+// --- Persisted (PostgreSQL-backed) email reporting ---
+
+export type PersistedReportSource = "db" | "fixture";
+
+export type ResolvedEmailReport = {
+  config: EmailReportConfig;
+  source: PersistedReportSource;
+  dbId: string | null;
+};
+
+/**
+ * Map a persisted report row + recipients to the shared EmailReportConfig
+ * shape consumed by rendering, sending, and the dashboard UI. The schedule
+ * jsonb carries the standard EmailSchedule fields plus an optional
+ * includeAiSummary flag (no extra column needed).
+ */
+export function dbReportToConfig(
+  report: DbEmailReport,
+  metaAccountId: string,
+  recipientRows: Array<{ email: string; name: string | null; status: string }>
+): EmailReportConfig {
+  const schedule = report.schedule as unknown as EmailSchedule & { includeAiSummary?: boolean };
+  const accountId = `act_${metaAccountId.replace(/^act_/, "")}`;
+  return {
+    id: report.id,
+    agencyId: report.agencyId,
+    clientId: report.clientId ?? undefined,
+    accountId,
+    entityLevel: report.entityLevel ?? "account",
+    entityId: report.entityId ?? undefined,
+    name: report.name,
+    reportType: report.reportType === "custom" ? "account_summary" : report.reportType,
+    enabled: report.enabled,
+    schedule: {
+      cadence: schedule.cadence,
+      dayOfWeek: schedule.dayOfWeek,
+      dayOfMonth: schedule.dayOfMonth,
+      localTime: schedule.localTime,
+      timezone: schedule.timezone || report.timezone,
+      datePreset: schedule.datePreset
+    },
+    recipients: recipientRows.map((row) => ({
+      email: row.email,
+      name: row.name ?? undefined,
+      status: (row.status === "active" || row.status === "invited" || row.status === "disabled" ? row.status : "active") as
+        | "active"
+        | "invited"
+        | "disabled"
+    })),
+    includeAiSummary: schedule.includeAiSummary ?? false,
+    dashboardPath: `/dashboard?accountId=${accountId}&preset=${schedule.datePreset}`,
+    createdAt: report.createdAt.toISOString(),
+    updatedAt: report.updatedAt.toISOString()
+  };
+}
+
+/**
+ * Resolve a report config from PostgreSQL first, falling back to the legacy
+ * in-memory fixtures (local dev without a database). Throws when unknown.
+ */
+export async function resolveEmailReport(
+  reportId: string,
+  deps: { db?: Database; agencyId?: string } = {}
+): Promise<ResolvedEmailReport> {
+  if (deps.db && deps.agencyId) {
+    const context: RepositoryContext = { db: deps.db, agencyId: deps.agencyId };
+    const reports = new EmailReportRepository(context);
+    const row = await reports.findById(reportId);
+    if (row) {
+      if (!row.adAccountId) throw new Error("Email report configuration not found");
+      const accounts = new AdAccountRepository(context);
+      const account = await accounts.findById(row.adAccountId);
+      if (!account) throw new Error("Email report configuration not found");
+      const recipients = new EmailRecipientRepository(context);
+      const recipientRows = (await recipients.listByReport(row.id)) ?? [];
+      return { config: dbReportToConfig(row, account.metaAccountId, recipientRows), source: "db", dbId: row.id };
+    }
+  }
+  const fixture = mockEmailReportConfigs.find((config) => config.id === reportId);
+  if (!fixture) throw new Error("Email report configuration not found");
+  return { config: fixture, source: "fixture", dbId: null };
+}
+
+function toDeliveryLogShape(row: {
+  id: string;
+  emailReportId: string;
+  status: "queued" | "sent" | "failed" | "skipped";
+  provider: string | null;
+  providerMessageId: string | null;
+  recipientCount: number;
+  attempt: number;
+  safeError: string | null;
+  renderedSubject: string | null;
+  sentAt: Date | null;
+  createdAt: Date;
+}): EmailDeliveryLog {
+  return {
+    id: row.id,
+    emailReportId: row.emailReportId,
+    status: row.status,
+    provider: row.provider === "resend" ? "resend" : "mock",
+    providerMessageId: row.providerMessageId ?? undefined,
+    recipientCount: row.recipientCount,
+    attempt: row.attempt,
+    safeError: row.safeError ?? undefined,
+    renderedSubject: row.renderedSubject ?? "",
+    sentAt: row.sentAt?.toISOString(),
+    createdAt: row.createdAt.toISOString()
+  };
+}
+
+/**
+ * Send a report resolved from PostgreSQL and persist the delivery log.
+ * The fixture-based sendEmailReport() below is preserved for tests and
+ * database-less development.
+ */
+export async function sendPersistedEmailReport(
+  reportId: string,
+  options: { db: Database; agencyId: string; provider?: EmailProvider; env?: Record<string, string | undefined> }
+): Promise<{ log: EmailDeliveryLog; source: "db" }> {
+  const { config } = await resolveEmailReport(reportId, { db: options.db, agencyId: options.agencyId });
+  const context: RepositoryContext = { db: options.db, agencyId: options.agencyId };
+  const logs = new EmailDeliveryLogRepository(context);
+  const provider = options.provider ?? createEmailProvider(options.env);
+  const rendered = await renderEmailReport(config, options.env);
+  const recipients = activeRecipientEmails(config);
+
+  if (!config.enabled) {
+    const row = await logs.record({
+      emailReportId: config.id,
+      status: "skipped",
+      provider: null,
+      recipientCount: recipients.length,
+      attempt: 1,
+      safeError: "Report is disabled",
+      renderedSubject: rendered.subject
+    });
+    if (!row) throw new Error("Email report configuration not found");
+    return { log: toDeliveryLogShape(row), source: "db" };
+  }
+
+  try {
+    const result = await provider.send({
+      to: recipients,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      metadata: { reportId: config.id, reportType: config.reportType }
+    });
+    const row = await logs.record({
+      emailReportId: config.id,
+      status: result.status === "sent" ? "sent" : "skipped",
+      provider: result.provider,
+      providerMessageId: result.providerMessageId,
+      recipientCount: recipients.length,
+      attempt: 1,
+      renderedSubject: rendered.subject,
+      sentAt: result.status === "sent" ? new Date() : null
+    });
+    if (!row) throw new Error("Email report configuration not found");
+    return { log: toDeliveryLogShape(row), source: "db" };
+  } catch (error) {
+    const safeError = error instanceof Error ? error.message.slice(0, 500) : "Unknown email provider failure";
+    const row = await logs.record({
+      emailReportId: config.id,
+      status: "failed",
+      provider: null,
+      recipientCount: recipients.length,
+      attempt: 1,
+      safeError,
+      renderedSubject: rendered.subject
+    });
+    if (!row) throw new Error("Email report configuration not found");
+    return { log: toDeliveryLogShape(row), source: "db" };
+  }
+}
+
+/** Persisted dashboard data for the email-reports page (falls back to fixtures without a database). */
+export async function getPersistedEmailDashboardData(
+  db: Database,
+  agencyId: string,
+  env: Record<string, string | undefined> = process.env
+): Promise<EmailReportsDashboardData & { source: PersistedReportSource }> {
+  const context: RepositoryContext = { db, agencyId };
+  const reports = new EmailReportRepository(context);
+  const recipients = new EmailRecipientRepository(context);
+  const logs = new EmailDeliveryLogRepository(context);
+  const accounts = new AdAccountRepository(context);
+  const readiness = getEmailProviderReadiness(env);
+
+  const rows = await reports.list({ limit: 100 });
+  const configs: EmailReportConfig[] = [];
+  const deliveryLogs: EmailDeliveryLog[] = [];
+  for (const row of rows) {
+    if (!row.adAccountId) continue;
+    const account = await accounts.findById(row.adAccountId);
+    if (!account) continue;
+    const recipientRows = (await recipients.listByReport(row.id)) ?? [];
+    configs.push(dbReportToConfig(row, account.metaAccountId, recipientRows));
+    const recent = (await logs.listByReport(row.id, 5)) ?? [];
+    for (const log of recent) deliveryLogs.push(toDeliveryLogShape(log));
+  }
+  deliveryLogs.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const previews = await Promise.all(configs.map((config) => renderEmailReport(config, env)));
+
+  return {
+    provider: readiness.provider,
+    providerConfigured: readiness.configured,
+    generatedAt: new Date().toISOString(),
+    reports: configs,
+    deliveryLogs: deliveryLogs.slice(0, 20),
+    previews,
+    caveats: [
+      "Reports, recipients, and delivery history are persisted in PostgreSQL.",
+      "Resend secrets must be set in environment variables, never committed.",
+      "Unavailable metrics stay unavailable, never zero.",
+      "Schedule times use the report/account timezone."
+    ],
+    source: "db"
+  };
+}

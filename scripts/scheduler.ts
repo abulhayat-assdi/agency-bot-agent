@@ -4,6 +4,7 @@ import { getAppConfig } from "@/server/config/env";
 import { closeDatabaseConnection, getDatabase } from "@/server/db/client";
 import { getSyncQueueReadiness } from "@/server/jobs";
 import { enqueueBackfillPlanner } from "@/server/jobs/queues";
+import { processDueEmailReports } from "@/server/email/scheduler";
 import { closeRedisConnection } from "@/server/jobs/redis";
 import { logger } from "@/server/observability/logger";
 import { createShutdownCoordinator } from "@/server/process/shutdown";
@@ -49,8 +50,7 @@ async function tick() {
     let enqueued = 0;
     let skipped = 0;
     for (const agency of agencies) {
-      const sync = new SyncRepository({ db, agencyId: agency.id });
-      const accounts = await db.query.adAccounts.findMany({ limit: 200 });
+      const sync = new SyncRepository({ db, agencyId: agency.id });      const accounts = await db.query.adAccounts.findMany({ limit: 200 });
       const scoped = accounts.filter((account) => account.agencyId === agency.id);
       const specs = planIncrementalSyncs(
         scoped.map((account) => ({
@@ -104,6 +104,27 @@ async function tick() {
         });
         enqueued += 1;
       }
+      // Scheduled email delivery shares the tick but never blocks Meta syncs:
+      // per-agency, claim-guarded, and fully exception-isolated.
+      try {
+        const email = await processDueEmailReports(db, agency.id, { limit: 10, retryDelayMs: 500 });
+        if (email.due > 0) {
+          logger.info("Scheduler email delivery complete", {
+            queue: readiness.queueName,
+            agencyId: agency.id,
+            due: email.due,
+            sent: email.sent,
+            failed: email.failed,
+            skipped: email.skipped
+          });
+        }
+      } catch (error) {
+        logger.error("Scheduler email delivery failed", {
+          queue: readiness.queueName,
+          agencyId: agency.id,
+          errorName: error instanceof Error ? error.name : "unknown"
+        });
+      }
     }
     logger.info("Scheduler tick complete", { queue: readiness.queueName, enqueued, skipped });
   } catch (error) {
@@ -126,5 +147,11 @@ logger.info("Sync scheduler started", {
   chunkDays: config.BACKFILL_CHUNK_DAYS
 });
 
-await tick();
-timer = setInterval(() => void tick(), intervalMs);
+// No top-level await: the production image runs scripts as CJS through tsx,
+// which rejects TLA (this previously crash-looped the scheduler container).
+async function main() {
+  await tick();
+  timer = setInterval(() => void tick(), intervalMs);
+}
+
+void main();

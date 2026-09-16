@@ -37,3 +37,5 @@ All API handlers validate input using schema validation before repository or pro
 ## Audit logging
 
 Audit logs capture sensitive administrative actions such as login success/failure, account registration, manual sync trigger, email report changes, and settings changes. Logs store safe metadata only.
+
+Milestone 9 implements this for real via `src/server/audit/audit-log.ts` (`auditLog`/`auditLogSafe`, shared by routes, actions, and the sync worker). Audited events: `admin.login.success`, `admin.login.failure`, `meta.sync.trigger`, `meta.sync.complete`, `meta.backfill.trigger`, `meta.sync.cancel`, `email.report.create/update/enable/disable/delete/send`, `email.recipient.add/update/remove`, `ai.conversation.create`. Metadata is scrubbed before persistence (credential-shaped keys and token-like values become `[redacted]`); IPs and user agents are stored as SHA-256 hashes only. Audit writes are best-effort and can never break the primary action. All audit queries are agency-scoped.

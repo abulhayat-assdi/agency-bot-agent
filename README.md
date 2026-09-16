@@ -71,6 +71,12 @@ Milestone 1 uses npm with Next.js, TypeScript, Tailwind CSS, shadcn/ui-style pri
 - Workers persist per chunk via `runPersistedSync`, track checkpoints in `sync_runs.checkpoint`, fail permanent Meta errors fast (`UnrecoverableError`), and retry rate-limit/transient/network errors with bounded backoff plus adaptive pacing (`META_SYNC_CONCURRENCY=2`).
 - Operations: `GET /api/meta/runs`, `GET /api/meta/runs/[runId]`, `POST /api/meta/sync/[runId]/cancel`, `GET /api/meta/accounts/status`, and the Sync operations page (start/refresh/inspect/cancel). Initial sync covers `META_INITIAL_SYNC_DAYS=30`; the schedule uses `META_INCREMENTAL_LOOKBACK_DAYS=3`.
 
+## Product depth (email persistence, AI memory, audit logging)
+
+- Email reports, recipients, and delivery logs persist in PostgreSQL (`npm run db:migrate` for `0002`). The scheduler sends due reports with atomic claims, bounded retries, and per-attempt logs; `/email-reports` manages them (create/enable/send/remove/recipients) plus full CRUD at `/api/email-reports/*`. Fixture demo mode remains when no database is configured.
+- AI conversations persist (`ai_conversations`/`ai_messages` with provider, model, and usage); continuing a thread forwards at most the last 10 user/assistant messages. Token counts come from the provider response or stay `null` — never zero. UI at `/ai-analyst` (sidebar + thread), API at `/api/ai/analyst` (`conversationId`) and `/api/ai/conversations/*`.
+- Audit events (`audit_logs`) cover logins, sync triggers/completions/cancels, email CRUD/recipients/sends, and AI conversation creation, with scrubbed metadata and hashed IPs. Rate limiting is Redis-shared for sync/backfill/AI/email/login with in-memory fallback.
+
 ## Security
 
 Never commit real `.env` files or secrets. Use `.env.example` placeholders only.

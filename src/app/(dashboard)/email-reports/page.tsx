@@ -2,13 +2,16 @@ import Link from "next/link";
 import { CalendarClock, CheckCircle2, Mail, Send, TriangleAlert } from "lucide-react";
 
 import { EmailConfigurator } from "@/components/email/email-configurator";
+import { EmailReportsManager } from "@/components/email/email-reports-manager";
 import { formatMetric } from "@/components/dashboard/metric-format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricsTable } from "@/components/tables/metrics-table";
+import { getDatabase } from "@/server/db/client";
+import { getRequestAgency } from "@/server/auth/request-context";
 import { getDashboardData } from "@/server/dashboard/mock-dashboard-data";
-import { getEmailProviderReadiness, getEmailReportsDashboardData, nextDeliveryDescription } from "@/server/email";
+import { getEmailProviderReadiness, getEmailReportsDashboardData, getPersistedEmailDashboardData, nextDeliveryDescription } from "@/server/email";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +19,18 @@ function label(value: string) {
   return value.replaceAll("_", " ");
 }
 
+async function loadEmailData() {
+  try {
+    const db = getDatabase();
+    const { agencyId } = await getRequestAgency(db);
+    return { ...(await getPersistedEmailDashboardData(db, agencyId)), source: "db" as const };
+  } catch {
+    return { ...(await getEmailReportsDashboardData()), source: "fixture" as const };
+  }
+}
+
 export default async function EmailReportsPage() {
-  const [data, dashboardData] = await Promise.all([getEmailReportsDashboardData(), getDashboardData({ preset: "last_7_days" })]);
+  const [data, dashboardData] = await Promise.all([loadEmailData(), getDashboardData({ preset: "last_7_days" })]);
   const readiness = getEmailProviderReadiness();
 
   return (
@@ -31,10 +44,21 @@ export default async function EmailReportsPage() {
         <div className="flex flex-wrap gap-2">
           <Badge variant={data.providerConfigured ? "success" : "warning"}>{data.providerConfigured ? "Ready" : "Needs config"}</Badge>
           <Badge variant="secondary">{data.provider}</Badge>
+          <Badge variant="secondary">{data.source === "db" ? "Persisted" : "Demo data"}</Badge>
         </div>
       </section>
 
       <EmailConfigurator provider={data.provider} providerConfigured={data.providerConfigured} fromConfigured={readiness.fromConfigured} reports={data.reports} accounts={dashboardData.accounts} />
+
+      {data.source === "db" ? (
+        <EmailReportsManager initialReports={data.reports} accounts={dashboardData.accounts} />
+      ) : (
+        <Card>
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            Connect PostgreSQL (DATABASE_URL) to create, edit, and schedule persisted reports. Demo configurations are shown until then.
+          </CardContent>
+        </Card>
+      )}
 
       <section className="grid gap-4 md:grid-cols-3">
         <Card>

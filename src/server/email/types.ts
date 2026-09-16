@@ -1,7 +1,7 @@
 import type { DateRangePreset } from "@/lib/dates/reporting";
 import type { AnalyticsMetricSet } from "@/server/analytics";
 
-export type EmailReportType = "account_summary" | "campaign_report" | "adset_report" | "ad_report" | "ai_summary" | "performance_alerts";
+export type EmailReportType = "account_summary" | "campaign_report" | "adset_report" | "ad_report" | "ai_summary" | "performance_alerts" | "custom";
 export type EmailCadence = "daily" | "weekly" | "monthly";
 export type EmailDeliveryStatus = "queued" | "sent" | "failed" | "skipped";
 
@@ -75,6 +75,7 @@ export type EmailDeliveryLog = {
   provider: "mock" | "resend";
   providerMessageId?: string;
   recipientCount: number;
+  attempt?: number;
   safeError?: string;
   renderedSubject: string;
   sentAt?: string;

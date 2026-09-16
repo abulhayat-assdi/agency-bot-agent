@@ -8,6 +8,7 @@ import { createGraphApiMetaAdsProvider, createMockMetaAdsProvider } from "@/serv
 import { fetchAllPagesBounded } from "@/server/meta/pagination";
 import type { MetaAdsProvider, MetaBreakdownRow, MetaDateRange, MetaEntityLevel, MetaInsightRow, MetaPage, MetaPaging } from "@/server/meta/types";
 import { logger } from "@/server/observability/logger";
+import { auditLogSafe } from "@/server/audit/audit-log";
 import { createRedisConnection } from "@/server/jobs/redis";
 import { enqueueAccountChunkSync } from "@/server/jobs/queues";
 import {
@@ -396,11 +397,21 @@ async function markParentChunkComplete(db: Database, data: SyncAccountChunkJobDa
   const summary = checkpointSummary(next);
   if (remaining.length === 0) {
     const hasFailures = next.failedChunks.length > 0;
+    const finalStatus = status === "failed" || hasFailures ? "partial" : status === "partial" ? "partial" : "success";
     await sync.finishRun(data.parentRunId, {
-      status: status === "failed" || hasFailures ? "partial" : status === "partial" ? "partial" : "success",
+      status: finalStatus,
       stats: { ...((parent.stats as Record<string, unknown>) ?? {}), chunks: summary },
       checkpoint: next,
       errorSummary: hasFailures ? `${next.failedChunks.length} chunk(s) need resume; see sync_errors.` : null
+    });
+    await auditLogSafe({
+      db,
+      agencyId: data.agencyId,
+      userId: null,
+      action: "meta.sync.complete",
+      resourceType: "sync_run",
+      resourceId: data.parentRunId,
+      metadata: { status: finalStatus, totalChunks: summary.totalChunks, completedChunks: summary.completedChunks }
     });
   } else {
     await sync.saveCheckpoint(data.parentRunId, { ...next, statsHint: summary });

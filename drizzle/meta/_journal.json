@@ -15,6 +15,13 @@
       "when": 1788983639077,
       "tag": "0001_mushy_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789461346611,
+      "tag": "0002_m9-email-ai-audit-depth",
+      "breakpoints": true
     }
   ]
 }

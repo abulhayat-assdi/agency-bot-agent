@@ -104,7 +104,8 @@ export function getSyncQueueReadiness(env: Record<string, string | undefined> = 
 
 export async function enqueueAdAccountSync(data: SyncAdAccountJobData, env: Record<string, string | undefined> = process.env) {
   const queue = createSyncQueue(env);
-  const jobId = `${data.accountId}:${data.dateRange.since}:${data.dateRange.until}:${data.type}`;
+  // BullMQ custom job IDs must not contain ":" — it separates Redis key segments.
+  const jobId = `${data.accountId}|${data.dateRange.since}|${data.dateRange.until}|${data.type}`;
 
   try {
     const job = await queue.add(SYNC_AD_ACCOUNT_JOB, data, { jobId });
@@ -123,7 +124,7 @@ export async function enqueueAdAccountSync(data: SyncAdAccountJobData, env: Reco
 
 export async function enqueueAllAccountsSync(data: SyncAllAccountsJobData, env: Record<string, string | undefined> = process.env) {
   const queue = createSyncQueue(env);
-  const jobId = `all:${data.agencyId}:${data.dateRange.since}:${data.dateRange.until}:${data.type}`;
+  const jobId = `all|${data.agencyId}|${data.dateRange.since}|${data.dateRange.until}|${data.type}`;
 
   try {
     const job = await queue.add(SYNC_ALL_ACCOUNTS_JOB, data, { jobId });
@@ -199,7 +200,7 @@ export async function scheduleRecurringAllAccountSync(data: Omit<SyncAllAccounts
   const every = config.SYNC_INTERVAL_MINUTES * 60 * 1_000;
 
   try {
-    const job = await queue.upsertJobScheduler(`scheduled:${data.agencyId}`, { every }, {
+    const job = await queue.upsertJobScheduler(`scheduled|${data.agencyId}`, { every }, {
       name: SYNC_ALL_ACCOUNTS_JOB,
       data: { ...data, type: "scheduled" },
       opts: defaultJobOptions
