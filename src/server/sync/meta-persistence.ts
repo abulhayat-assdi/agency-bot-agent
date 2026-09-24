@@ -19,6 +19,7 @@ import { logger } from "@/server/observability/logger";
 import { AdRepository } from "@/server/repositories/ad-repository";
 import { AdAccountRepository } from "@/server/repositories/ad-account-repository";
 import { AdSetRepository } from "@/server/repositories/adset-repository";
+import { AgencyRepository } from "@/server/repositories/agency-repository";
 import { CampaignRepository } from "@/server/repositories/campaign-repository";
 import { ClientRepository } from "@/server/repositories/client-repository";
 import { CreativeRepository } from "@/server/repositories/creative-repository";
@@ -100,7 +101,10 @@ export async function ensureDefaultScope(db: Database, agencyId?: string): Promi
     return { agencyId, clientId: created.id };
   }
   const agencies = await db.query.agencies.findMany({ limit: 1 });
-  const agency = agencies[0];
+  // A fresh production database is never seeded (the seed inserts mock data),
+  // so bootstrap the single-agency scope on first use. Upsert on the unique
+  // slug keeps concurrent first requests from creating duplicates.
+  const agency = agencies[0] ?? (await new AgencyRepository(db).upsert({ name: "Default Agency", slug: "default", timezone: "UTC" }));
   if (!agency) throw new Error("No agency available for Meta sync persistence");
   return ensureDefaultScope(db, agency.id);
 }

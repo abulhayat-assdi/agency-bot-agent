@@ -170,7 +170,11 @@ export async function POST(request: Request) {
     if (error instanceof ApiError) {
       return jsonResponse({ ok: false, error: error.message }, { status: error.status });
     }
-    logger.error("Meta account sync failed", { accountId: parsed.data.accountId });
+    logger.error("Meta account sync failed", {
+      accountId: parsed.data.accountId,
+      errorName: error instanceof Error ? error.name : "unknown",
+      errorMessage: error instanceof Error ? error.message : String(error)
+    });
     return jsonResponse({ ok: false, error: toSafeUserMessage(error) }, { status: 502 });
   }
 }
