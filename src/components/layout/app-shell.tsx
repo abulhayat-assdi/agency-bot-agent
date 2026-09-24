@@ -12,6 +12,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const liveMeta = process.env.META_PROVIDER === "graph-api";
   return (
     <div className="min-h-screen">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border/80 bg-white/75 p-5 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/75 lg:block">
@@ -55,8 +56,7 @@ export function AppShell({ children }: AppShellProps) {
               <h1 className="mt-1 text-xl font-semibold">Agency command center</h1>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="success">Mock ready</Badge>
-              <Badge variant="secondary">M15</Badge>
+              {liveMeta ? <Badge variant="success">Live Meta data</Badge> : <Badge variant="secondary">Mock Meta data</Badge>}
               <ThemeToggle />
               <form action={logoutAction}>
                 <Button variant="outline" size="sm" type="submit">
