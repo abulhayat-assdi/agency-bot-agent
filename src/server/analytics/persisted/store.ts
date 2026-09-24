@@ -16,6 +16,23 @@ import type {
   MetaInsightRow
 } from "@/server/meta/types";
 
+/**
+ * Deterministic mock data may stand in for missing persisted data only when the
+ * platform itself runs on the mock provider (tests, local demo). With the live
+ * Graph API provider, missing data stays empty and is never mock-filled.
+ */
+export function isMockFallbackAllowed(env: Record<string, string | undefined> = process.env): boolean {
+  if (env.ANALYTICS_SOURCE === "mock") return true;
+  return (env.META_PROVIDER || "mock") === "mock";
+}
+
+export class NoAdAccountsError extends Error {
+  constructor(surface: string) {
+    super(`No ad accounts available for ${surface}`);
+    this.name = "NoAdAccountsError";
+  }
+}
+
 function shouldUsePersisted(): boolean {
   if (process.env.ANALYTICS_SOURCE === "mock") return false;
   return true;

@@ -171,7 +171,7 @@ EMAIL_FROM=reports@example.com
 ## Database migration runbook
 
 1. **Backup/check.** Snapshot PostgreSQL in Coolify (or `pg_dump`) and confirm the current image tag so you can roll back.
-2. **Migration.** Run `npm run deploy:migrate` (Drizzle `migrate`, never `db:push`) against the production `DATABASE_URL` before starting new web/worker/scheduler containers.
+2. **Migration.** The web service applies pending migrations automatically on start (`start:web` runs `scripts/migrate.ts`, which uses the runtime `drizzle-orm` migrator and is idempotent; a failed migration stops the web container from starting). To run it by hand inside a production container, use `npm run db:migrate:runtime`; `npm run deploy:migrate` needs `drizzle-kit` (dev dependency, not in the runtime image). Never use `db:push`.
 3. **Verification.** Check the `__drizzle_migrations` table and start one container with `npm run deploy:check`; confirm `/api/ready` returns 200 with `database.reachable: true`.
 4. **Application startup.** Deploy web, then worker, then scheduler. Never reset the schema (`down -v`, `migrate:drop`) in production.
 

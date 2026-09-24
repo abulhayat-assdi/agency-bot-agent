@@ -8,7 +8,8 @@ import {
   fetchPersistedInsightRows,
   findPersistedAccount,
   getAnalyticsDb,
-  listPersistedAccounts
+  listPersistedAccounts,
+  isMockFallbackAllowed
 } from "@/server/analytics/persisted/store";
 import { createMockMetaAdsProvider, type MetaAd, type MetaAdAccount, type MetaAdSet, type MetaBreakdownRow, type MetaCampaign, type MetaCreative, type MetaInsightRow } from "@/server/meta";
 import { ads, creativeMetadata } from "@/server/db/schema";
@@ -106,6 +107,9 @@ async function getBaseContext() {
   const persisted = await loadPersistedHierarchy();
   if (persisted) return { ...persisted, provider: createMockMetaAdsProvider() };
   const provider = createMockMetaAdsProvider();
+  if (!isMockFallbackAllowed()) {
+    return { provider, accounts: [], campaigns: [], adSets: [], ads: [], clients: [] as DashboardClient[], syncedAccountIds: new Set<string>() };
+  }
   const accounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
   const campaigns = (await Promise.all(accounts.map((account) => fetchAllPages<MetaCampaign>((after) => provider.listCampaigns(account.id, { limit: 100, after }))))).flat();
   const adSets = (await Promise.all(accounts.map((account) => fetchAllPages<MetaAdSet>((after) => provider.listAdSets(account.id, undefined, { limit: 100, after }))))).flat();
@@ -168,7 +172,7 @@ async function getPersistedRows(accountId: string, level: "campaign" | "adset" |
 async function getInsights(accountId: string, level: "campaign" | "adset" | "ad", entityId: string, range: ReportingDateRange, persistedOnly = false) {
   const persisted = await getPersistedRows(accountId, level, entityId, range);
   if (persisted) return { rows: persisted, source: "persisted" as const };
-  if (persistedOnly) return { rows: [], source: "persisted" as const };
+  if (persistedOnly || !isMockFallbackAllowed()) return { rows: [], source: "persisted" as const };
   const provider = createMockMetaAdsProvider();
   const rows = await fetchAllPages<MetaInsightRow>((after) =>
     provider.getInsights({ accountId, level, entityIds: [entityId], dateRange: range, limit: 100, after })
@@ -213,7 +217,7 @@ async function breakdownPreview(
     if (persisted) {
       rows = persisted;
       source = "persisted";
-    } else if (persistedOnly) {
+    } else if (persistedOnly || !isMockFallbackAllowed()) {
       rows = [];
     } else {
       rows = await fetchAllPages<MetaBreakdownRow>((after) =>

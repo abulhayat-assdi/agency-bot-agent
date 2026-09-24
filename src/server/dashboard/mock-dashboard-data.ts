@@ -4,6 +4,7 @@ import {
   fetchPersistedInsightRows,
   findPersistedAccount,
   getAnalyticsDb,
+  isMockFallbackAllowed,
   listPersistedAccounts,
   type PersistedAccountContext
 } from "@/server/analytics/persisted/store";
@@ -187,6 +188,7 @@ async function getRowsForRange(
       // Persisted reads are best-effort; fall back to the mock provider below.
     }
   }
+  if (!isMockFallbackAllowed()) return { rows: [], source: "persisted" };
   const provider = createMockMetaAdsProvider();
   const rows = await fetchAllPages<MetaInsightRow>((after) =>
     provider.getInsights({ accountId, level, dateRange: range, limit: 100, after })
@@ -230,9 +232,11 @@ function trendFromRows(rows: MetaInsightRow[]): TrendPoint[] {
 }
 
 export async function getDashboardData(filters: DashboardFilters): Promise<DashboardData> {
+  const allowMock = isMockFallbackAllowed();
   const provider = createMockMetaAdsProvider();
-  const mockAccounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
+  const mockAccounts = allowMock ? await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after })) : [];
   const persisted = await loadPersistedAccounts();
+  const fallbackClients = allowMock ? dashboardClients : [];
   const accounts = persisted?.accounts ?? mockAccounts;
   const persistedById = persisted?.byId;
   const clientFor = (accountId: string): DashboardClient => {
@@ -247,8 +251,9 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
   const effectiveAccounts = selectedAccounts.length > 0 ? selectedAccounts : filteredByClient;
   // An account counts as persisted once it has completed a real sync; only
   // those accounts read PostgreSQL, and mock data is never mixed into them.
-  const isPersistedAccount = (accountId: string) => Boolean(persistedById?.get(accountId)?.lastSyncAt);
-  const hasPersistedSelection = effectiveAccounts.some((account) => isPersistedAccount(account.id));
+  // With mock fallback disabled (live provider), every account reads PostgreSQL only.
+  const isPersistedAccount = (accountId: string) => !allowMock || Boolean(persistedById?.get(accountId)?.lastSyncAt);
+  const hasPersistedSelection = !allowMock || effectiveAccounts.some((account) => isPersistedAccount(account.id));
   const referenceNow = hasPersistedSelection ? new Date() : new Date("2026-09-10T12:00:00.000Z");
   const displayAccounts = hasPersistedSelection ? effectiveAccounts.filter((account) => isPersistedAccount(account.id)) : effectiveAccounts;
   const unsyncedAccounts = hasPersistedSelection ? effectiveAccounts.filter((account) => !isPersistedAccount(account.id)) : [];
@@ -273,7 +278,7 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
     client: clientFor(account.id),
     metrics: aggregateRows(rows),
     previousMetrics: aggregateRows(previousRows),
-    lastSyncAt: persistedById?.get(account.id)?.lastSyncAt ?? "2026-09-10T11:45:00.000Z",
+    lastSyncAt: persistedById?.get(account.id)?.lastSyncAt ?? (allowMock ? "2026-09-10T11:45:00.000Z" : ""),
     freshnessState: (persistedById?.has(account.id) ? (persistedById.get(account.id)?.lastSyncState === "failed" ? "stale" : "fresh") : "fresh") as "fresh" | "stale"
   }));
 
@@ -322,7 +327,7 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
     source,
     range,
     previousRange,
-    clients: persisted?.clients ?? dashboardClients,
+    clients: persisted?.clients ?? fallbackClients,
     accounts,
     selectedAccounts: displayAccounts,
     unsyncedAccounts,
@@ -332,7 +337,7 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
     campaignSummaries,
     trend: trendFromRows(allRows),
     totals: {
-      clients: (persisted?.clients ?? dashboardClients).length,
+      clients: (persisted?.clients ?? fallbackClients).length,
       connectedAccounts: accounts.filter((account) => account.accessStatus === "connected").length,
       selectedAccounts: displayAccounts.length
     },

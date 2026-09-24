@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricsTable } from "@/components/tables/metrics-table";
 import { getTrendDashboardData, type ComparisonMetricKey, type TrendQuery } from "@/server/trends";
+import { EmptyState } from "@/components/states/empty-state";
+import { NoAdAccountsError } from "@/server/analytics/persisted/store";
 import { formatDateRange, type DateRangePreset } from "@/lib/dates/reporting";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +47,20 @@ function metricLabel(metricKey: string) {
 
 export default async function TrendsPage({ searchParams }: PageProps) {
   const query = parseQuery(await searchParams);
-  const data = await getTrendDashboardData(query);
+  let data: Awaited<ReturnType<typeof getTrendDashboardData>>;
+  try {
+    data = await getTrendDashboardData(query);
+  } catch (error) {
+    if (error instanceof NoAdAccountsError) {
+      return (
+        <EmptyState
+          title="No ad accounts synced yet"
+          description="Open Settings, discover your Meta ad accounts, and run a sync. Trends appear here once real data is stored."
+        />
+      );
+    }
+    throw error;
+  }
   const preset = query.preset ?? "last_7_days";
   const valueKind = comparisonValueKind(data.metricKey);
   const primaryComparison = data.accountComparisons[data.metricKey];

@@ -29,7 +29,7 @@ export default async function AdAccountOverviewPage({ params }: { params: Promis
           <p className="section-eyebrow">Ad Account Overview</p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight">{summary.account.name}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {summary.account.id} · {summary.account.currency} · {summary.account.timezone} · Last sync {summary.lastSyncAt}
+            {summary.account.id} · {summary.account.currency} · {summary.account.timezone} · Last sync {summary.lastSyncAt || "never"}
           </p>
         </div>
         <Badge variant="success">{summary.account.accessStatus}</Badge>

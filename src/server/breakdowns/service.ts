@@ -4,7 +4,9 @@ import {
   fetchPersistedBreakdownRows,
   findPersistedAccount,
   getAnalyticsDb,
-  listPersistedAccounts
+  isMockFallbackAllowed,
+  listPersistedAccounts,
+  NoAdAccountsError
 } from "@/server/analytics/persisted/store";
 import { createMockMetaAdsProvider, MetaApiError, type MetaAdAccount, type MetaBreakdownRow, type MetaEntityLevel } from "@/server/meta";
 import { resolveDatePreset, type DateRangePreset, type ReportingDateRange } from "@/lib/dates/reporting";
@@ -130,7 +132,7 @@ async function fetchBreakdownRows(
       // Fall through to the mock provider.
     }
   }
-  if (persistedOnly) return { rows: [], source: "persisted" };
+  if (persistedOnly || !isMockFallbackAllowed()) return { rows: [], source: "persisted" };
   const provider = createMockMetaAdsProvider();
   const rows = await fetchAllPages<MetaBreakdownRow>((after) =>
     provider.getBreakdowns({
@@ -147,17 +149,18 @@ async function fetchBreakdownRows(
 }
 
 export async function getBreakdownDashboardData(query: BreakdownQuery = {}): Promise<BreakdownDashboardData> {
+  const allowMock = isMockFallbackAllowed();
   const provider = createMockMetaAdsProvider();
-  const mockAccounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
+  const mockAccounts = allowMock ? await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after })) : [];
   const persistedAccounts = await loadPersistedAccounts();
   const accounts = persistedAccounts ? [...persistedAccounts.values()].map((entry) => entry.account) : mockAccounts;
   const selectedAccount = accounts.find((account) => account.id === query.accountId) ?? accounts[0];
 
   if (!selectedAccount) {
-    throw new Error("No ad accounts available for breakdown analysis");
+    throw new NoAdAccountsError("breakdown analysis");
   }
 
-  const persistedOnly = Boolean(persistedAccounts?.get(selectedAccount.id)?.lastSyncAt);
+  const persistedOnly = !allowMock || Boolean(persistedAccounts?.get(selectedAccount.id)?.lastSyncAt);
   const level = normalizeLevel(query.level);
   const entityId = query.entityId ?? selectedAccount.id;
   const referenceNow = persistedOnly ? new Date() : new Date("2026-09-10T12:00:00.000Z");

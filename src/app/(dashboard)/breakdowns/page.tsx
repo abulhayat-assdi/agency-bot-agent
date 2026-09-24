@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricsTable } from "@/components/tables/metrics-table";
 import { getBreakdownDashboardData } from "@/server/breakdowns";
+import { EmptyState } from "@/components/states/empty-state";
+import { NoAdAccountsError } from "@/server/analytics/persisted/store";
 import type { DateRangePreset } from "@/lib/dates/reporting";
 import { formatDateRange } from "@/lib/dates/reporting";
 
@@ -49,7 +51,20 @@ export default async function BreakdownsPage({ searchParams }: PageProps) {
   const preset = (readParam(params, "preset") as DateRangePreset | undefined) ?? "last_7_days";
   const accountId = readParam(params, "accountId");
   const breakdownKey = readParam(params, "breakdownKey");
-  const data = await getBreakdownDashboardData({ accountId, preset, breakdownKey });
+  let data: Awaited<ReturnType<typeof getBreakdownDashboardData>>;
+  try {
+    data = await getBreakdownDashboardData({ accountId, preset, breakdownKey });
+  } catch (error) {
+    if (error instanceof NoAdAccountsError) {
+      return (
+        <EmptyState
+          title="No ad accounts synced yet"
+          description="Open Settings, discover your Meta ad accounts, and run a sync. Breakdowns appear here once real data is stored."
+        />
+      );
+    }
+    throw error;
+  }
   const topRow = data.rows[0];
 
   return (

@@ -5,7 +5,9 @@ import {
   fetchPersistedInsightRows,
   findPersistedAccount,
   getAnalyticsDb,
-  listPersistedAccounts
+  isMockFallbackAllowed,
+  listPersistedAccounts,
+  NoAdAccountsError
 } from "@/server/analytics/persisted/store";
 import { createMockMetaAdsProvider, type MetaAd, type MetaAdAccount, type MetaAdSet, type MetaCampaign, type MetaEntityLevel, type MetaInsightRow } from "@/server/meta";
 import { previousEquivalentPeriod, resolveDatePreset, type DateRangePreset, type ReportingDateRange } from "@/lib/dates/reporting";
@@ -119,7 +121,7 @@ async function loadPersistedAccounts(): Promise<Map<string, { account: MetaAdAcc
 }
 
 function isPersistedSelection(persisted: Map<string, { account: MetaAdAccount; lastSyncAt: string | null }> | null, accountId: string) {
-  return Boolean(persisted?.get(accountId)?.lastSyncAt);
+  return !isMockFallbackAllowed() || Boolean(persisted?.get(accountId)?.lastSyncAt);
 }
 
 async function listEntities(accountId: string, level: ComparedEntity["level"], persistedOnly: boolean) {
@@ -229,12 +231,12 @@ function comparisonDirection(metricKey: ComparisonMetricKey) {
 
 export async function getTrendDashboardData(query: TrendQuery = {}): Promise<TrendDashboardData> {
   const provider = createMockMetaAdsProvider();
-  const mockAccounts = await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after }));
+  const mockAccounts = isMockFallbackAllowed() ? await fetchAllPages<MetaAdAccount>((after) => provider.listAdAccounts({ limit: 100, after })) : [];
   const persistedAccounts = await loadPersistedAccounts();
   const accounts = persistedAccounts ? [...persistedAccounts.values()].map((entry) => entry.account) : mockAccounts;
   const selectedAccount = accounts.find((account) => account.id === query.accountId) ?? accounts[0];
 
-  if (!selectedAccount) throw new Error("No ad accounts available for trends");
+  if (!selectedAccount) throw new NoAdAccountsError("trends");
 
   const persistedOnly = isPersistedSelection(persistedAccounts, selectedAccount.id);
   const source = persistedOnly ? "persisted" : "mock";
