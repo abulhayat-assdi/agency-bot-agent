@@ -24,6 +24,8 @@ const envSchema = z.object({
   META_SYSTEM_USER_ACCESS_TOKEN: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-4.1-mini"),
+  // Any OpenAI-compatible chat completions endpoint, e.g. https://openrouter.ai/api/v1
+  OPENAI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
   EMAIL_PROVIDER: z.enum(["resend", "mock"]).default("mock"),
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().optional()
@@ -32,7 +34,10 @@ const envSchema = z.object({
 export type AppConfig = z.infer<typeof envSchema>;
 
 export function getAppConfig(env: Record<string, string | undefined> = process.env): AppConfig {
-  const parsed = envSchema.safeParse(env);
+  // Compose passes unset optional vars as "" (`${VAR:-}`); treat those as unset
+  // so defaults apply and optional validators (e.g. EMAIL_FROM email) don't fail.
+  const normalized = Object.fromEntries(Object.entries(env).filter(([, value]) => value !== ""));
+  const parsed = envSchema.safeParse(normalized);
 
   if (!parsed.success) {
     const issues = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");

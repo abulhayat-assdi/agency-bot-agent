@@ -11,6 +11,14 @@ describe("environment configuration", () => {
     expect(config.META_GRAPH_API_VERSION).toBe("v26.0");
   });
 
+  it("treats empty compose-interpolated values as unset", () => {
+    const config = getAppConfig({ EMAIL_FROM: "", OPENAI_BASE_URL: "", OPENAI_MODEL: "" });
+
+    expect(config.EMAIL_FROM).toBeUndefined();
+    expect(config.OPENAI_BASE_URL).toBe("https://api.openai.com/v1");
+    expect(config.OPENAI_MODEL).toBe("gpt-4.1-mini");
+  });
+
   it("reports readiness without exposing secrets", () => {
     const config = getAppConfig({
       META_PROVIDER: "mock",

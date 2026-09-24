@@ -158,7 +158,7 @@ async function callOpenAi(
   if (!config.OPENAI_API_KEY) return null;
 
   const startedAt = Date.now();
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetch(`${config.OPENAI_BASE_URL.replace(/\/+$/, "")}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.OPENAI_API_KEY}`,
