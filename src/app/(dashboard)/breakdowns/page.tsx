@@ -140,7 +140,7 @@ export default async function BreakdownsPage({ searchParams }: PageProps) {
             ))}
             {data.selectedCapability.metricLimitations.map((note) => (
               <div key={note} className="flex gap-2 text-sm text-amber-700 dark:text-amber-300">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
                 {note}
               </div>
             ))}

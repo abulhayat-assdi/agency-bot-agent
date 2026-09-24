@@ -85,7 +85,7 @@ export default async function SyncOperationsPage() {
           <CardHeader className="space-y-1">
             <CardDescription>Worker concurrency</CardDescription>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Activity className="h-5 w-5 text-emerald-300" aria-hidden="true" />
+              <Activity className="h-5 w-5 text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
               {readiness.workerConcurrency}
             </CardTitle>
           </CardHeader>
@@ -95,7 +95,7 @@ export default async function SyncOperationsPage() {
           <CardHeader className="space-y-1">
             <CardDescription>Retry policy</CardDescription>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <TriangleAlert className="h-5 w-5 text-amber-300" aria-hidden="true" />
+              <TriangleAlert className="h-5 w-5 text-amber-600 dark:text-amber-300" aria-hidden="true" />
               {readiness.defaultAttempts} attempts
             </CardTitle>
           </CardHeader>
@@ -105,7 +105,7 @@ export default async function SyncOperationsPage() {
           <CardHeader className="space-y-1">
             <CardDescription>Schedule interval</CardDescription>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Clock3 className="h-5 w-5 text-purple-300" aria-hidden="true" />
+              <Clock3 className="h-5 w-5 text-purple-600 dark:text-purple-300" aria-hidden="true" />
               {config.SYNC_INTERVAL_MINUTES} min
             </CardTitle>
           </CardHeader>
@@ -131,7 +131,7 @@ export default async function SyncOperationsPage() {
               {lifecycle.map((item, index) => (
                 <li key={item} className="rounded-2xl metric-surface p-4">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400/10 text-sm font-semibold text-sky-200">{index + 1}</span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400/10 text-sm font-semibold text-sky-700 dark:text-sky-200">{index + 1}</span>
                     <span className="text-sm font-medium capitalize">{item}</span>
                   </div>
                 </li>
@@ -147,8 +147,8 @@ export default async function SyncOperationsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {guarantees.map((item) => (
-              <div key={item} className="flex gap-3 rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-3 text-sm text-emerald-50/90">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />
+              <div key={item} className="flex gap-3 rounded-2xl border border-emerald-400/15 bg-emerald-400/5 p-3 text-sm text-emerald-900 dark:text-emerald-50/90">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
                 <span>{item}</span>
               </div>
             ))}

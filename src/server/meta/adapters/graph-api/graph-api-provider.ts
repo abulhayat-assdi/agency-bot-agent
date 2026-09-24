@@ -64,8 +64,9 @@ const INSIGHT_FIELDS = [
   "video_p50_watched_actions",
   "video_p75_watched_actions",
   "video_p100_watched_actions",
-  "video_avg_time_watched_actions",
-  "landing_page_views"
+  "video_avg_time_watched_actions"
+  // landing_page_views is not an Insights field (Meta rejects the whole request
+  // with #100); it is read from the "landing_page_view" action type instead.
 ].join(",");
 
 const CONVERSION_ACTION_TYPES = new Set([
@@ -232,12 +233,14 @@ function insightRowToMeta(row: GraphInsightRow, query: MetaInsightsQuery, accoun
     actionMetrics
   };
 
-  // Preserve landing_page_views without promoting it to a core conversion.
-  const landingRaw = row.landing_page_views as string | number | GraphActionMetric[] | undefined;
+  // Preserve landing page views without promoting them to a core conversion.
+  // Meta reports them as the "landing_page_view" action type.
+  const landingAction = row.actions?.find((action) => action.action_type === "landing_page_view");
+  const landingRaw = landingAction ? landingAction.value : (row.landing_page_views as string | number | GraphActionMetric[] | undefined);
   const landingPageViews = Array.isArray(landingRaw)
     ? landingRaw.reduce((sum, item) => sum + (parseNumber((item as { value?: string }).value) ?? 0), 0)
     : parseNumber(landingRaw as string | number | null | undefined);
-  if (landingPageViews !== null || row.landing_page_views !== undefined) {
+  if (landingPageViews !== null || landingAction !== undefined || row.landing_page_views !== undefined) {
     metrics.engagementMetrics = { ...(metrics.engagementMetrics ?? {}), landing_page_views: landingPageViews };
   }
 

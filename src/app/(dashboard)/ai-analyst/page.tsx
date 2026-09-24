@@ -178,7 +178,7 @@ export default async function AiAnalystPage({ searchParams }: PageProps) {
               <p className="mt-2 text-sm leading-6 text-muted-foreground">The AI cannot create, edit, pause, delete, target, budget, or mutate Meta entities.</p>
             </div>
             <div className="rounded-3xl metric-surface p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-purple-100">
+              <div className="flex items-center gap-2 text-sm font-semibold text-purple-800 dark:text-purple-100">
                 <Bot className="h-4 w-4" aria-hidden="true" />
                 OpenAI optional
               </div>

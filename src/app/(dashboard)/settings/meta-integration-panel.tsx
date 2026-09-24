@@ -146,7 +146,7 @@ export function MetaIntegrationPanel() {
             {accounts.map((account) => {
               const state = freshness[account.id];
               return (
-                <li key={account.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm">
+                <li key={account.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border dark:border-white/10 bg-muted/60 dark:bg-slate-950/50 p-3 text-sm">
                   <div>
                     <div className="font-medium">{account.name}</div>
                     <div className="text-muted-foreground">
@@ -157,7 +157,7 @@ export function MetaIntegrationPanel() {
                         Last sync: {state.lastSuccessfulSync ? `${state.lastSuccessfulSync.slice(0, 10)} (${state.lastSyncStatus})` : "never"}
                         {" · "}Data through: {state.dataThroughDate ?? "—"}
                         {state.errorState && (
-                          <span className="text-red-300"> · {state.errorState.category}: {state.errorState.remediation}</span>
+                          <span className="text-red-700 dark:text-red-300"> · {state.errorState.category}: {state.errorState.remediation}</span>
                         )}
                       </div>
                     )}
@@ -171,8 +171,8 @@ export function MetaIntegrationPanel() {
           </ul>
         )}
 
-        {syncResult && <p className="text-sm text-emerald-200">{syncResult}</p>}
-        {error && <p className="text-sm text-red-300">{error}</p>}
+        {syncResult && <p className="text-sm text-emerald-700 dark:text-emerald-200">{syncResult}</p>}
+        {error && <p className="text-sm text-red-700 dark:text-red-300">{error}</p>}
       </CardContent>
     </Card>
   );

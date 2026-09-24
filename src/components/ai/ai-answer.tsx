@@ -27,7 +27,7 @@ export function AiAnswer({ result }: { result: GroundedAiAnswer }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DatabaseZap className="h-5 w-5 text-emerald-300" aria-hidden="true" />
+            <DatabaseZap className="h-5 w-5 text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
             Tool evidence
           </CardTitle>
           <CardDescription>Evidence is exposed for auditability and to prevent hidden model-only calculations.</CardDescription>
@@ -69,7 +69,7 @@ export function AiAnswer({ result }: { result: GroundedAiAnswer }) {
           ))}
 
           <div className="flex gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-3 text-xs text-emerald-700 dark:text-emerald-300">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
             AI tools are read-only and cannot create, edit, pause, delete, or budget Meta entities.
           </div>
         </CardContent>

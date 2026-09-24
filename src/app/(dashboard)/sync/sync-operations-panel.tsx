@@ -179,7 +179,7 @@ export function SyncOperationsPanel({
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Ad account</span>
               <select
-                className="rounded-xl border border-white/10 bg-slate-950/60 p-2"
+                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-slate-950/60 p-2"
                 value={form.accountId}
                 onChange={(event) => setForm({ ...form, accountId: event.target.value })}
               >
@@ -193,7 +193,7 @@ export function SyncOperationsPanel({
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Kind</span>
               <select
-                className="rounded-xl border border-white/10 bg-slate-950/60 p-2"
+                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-slate-950/60 p-2"
                 value={form.syncKind}
                 onChange={(event) => setForm({ ...form, syncKind: event.target.value })}
               >
@@ -208,7 +208,7 @@ export function SyncOperationsPanel({
               <span className="text-muted-foreground">Backfill start</span>
               <input
                 type="date"
-                className="rounded-xl border border-white/10 bg-slate-950/60 p-2"
+                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-slate-950/60 p-2"
                 value={form.dateStart}
                 onChange={(event) => setForm({ ...form, dateStart: event.target.value })}
               />
@@ -217,7 +217,7 @@ export function SyncOperationsPanel({
               <span className="text-muted-foreground">Backfill end</span>
               <input
                 type="date"
-                className="rounded-xl border border-white/10 bg-slate-950/60 p-2"
+                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-slate-950/60 p-2"
                 value={form.dateEnd}
                 onChange={(event) => setForm({ ...form, dateEnd: event.target.value })}
               />
@@ -235,8 +235,8 @@ export function SyncOperationsPanel({
             </Button>
           </div>
           {!queueConfigured && <p className="text-sm text-muted-foreground">Queue actions need REDIS_URL; run history below still reflects persisted runs.</p>}
-          {message && <p className="text-sm text-emerald-200">{message}</p>}
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {message && <p className="text-sm text-emerald-700 dark:text-emerald-200">{message}</p>}
+          {error && <p className="text-sm text-red-700 dark:text-red-300">{error}</p>}
         </CardContent>
       </Card>
 
@@ -248,7 +248,7 @@ export function SyncOperationsPanel({
         <CardContent className="space-y-2">
           {runs.length === 0 && <p className="text-sm text-muted-foreground">No sync runs yet. Start a sync above.</p>}
           {runs.map((run) => (
-            <div key={run.runId} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm">
+            <div key={run.runId} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border dark:border-white/10 bg-muted/60 dark:bg-slate-950/50 p-3 text-sm">
               <div>
                 <div className="flex items-center gap-2 font-medium">
                   <Badge variant={run.status === "success" ? "success" : "warning"}>{run.status}</Badge>
@@ -261,9 +261,9 @@ export function SyncOperationsPanel({
                     : "Checkpoint pending"}
                   {run.durationMs !== null && run.durationMs !== undefined && ` · ${(run.durationMs / 1000).toFixed(1)}s`}
                 </div>
-                {run.errorSummary && <div className="text-red-300">{run.errorSummary}</div>}
+                {run.errorSummary && <div className="text-red-700 dark:text-red-300">{run.errorSummary}</div>}
                 {run.stale && (
-                  <div className="text-amber-200">
+                  <div className="text-amber-700 dark:text-amber-200">
                     Stale: active beyond the expected window. {run.staleRemediation ?? "Check worker logs and Redis connectivity."}
                   </div>
                 )}
@@ -301,14 +301,14 @@ export function SyncOperationsPanel({
             )}
             {selected.errors.length === 0 && <p className="text-sm text-muted-foreground">No recorded errors for this run.</p>}
             {selected.errors.map((entry) => (
-              <div key={entry.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm">
+              <div key={entry.id} className="rounded-2xl border border-border dark:border-white/10 bg-muted/60 dark:bg-slate-950/50 p-3 text-sm">
                 <div className="font-medium">
                   {entry.category}
                   {entry.chunkIndex !== null && entry.chunkIndex !== undefined && ` · chunk ${entry.chunkIndex}`}
                   {entry.stage && ` · ${entry.stage}`}
                 </div>
                 <div className="text-muted-foreground">{entry.safeMessage}</div>
-                <div className="text-emerald-200">{entry.remediation}</div>
+                <div className="text-emerald-700 dark:text-emerald-200">{entry.remediation}</div>
               </div>
             ))}
           </CardContent>

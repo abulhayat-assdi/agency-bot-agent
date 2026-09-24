@@ -100,7 +100,7 @@ export function EmailReportsManager({ initialReports, accounts }: ManagerProps) 
         </CardHeader>
         <CardContent className="space-y-4">
           {feedback ? (
-            <p role={feedback.kind === "error" ? "alert" : "status"} className={feedback.kind === "error" ? "text-sm text-red-300" : "text-sm text-emerald-300"}>
+            <p role={feedback.kind === "error" ? "alert" : "status"} className={feedback.kind === "error" ? "text-sm text-red-700 dark:text-red-300" : "text-sm text-emerald-700 dark:text-emerald-300"}>
               {feedback.message}
             </p>
           ) : null}

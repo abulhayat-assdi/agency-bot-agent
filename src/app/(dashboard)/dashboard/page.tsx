@@ -61,7 +61,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       {data.source !== "persisted" && (
         <Card>
           <CardContent className="flex items-start gap-3 p-4 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
             <div>
               <p className="font-medium">No synchronized data yet — showing clearly labeled demo data.</p>
               <p className="text-muted-foreground">

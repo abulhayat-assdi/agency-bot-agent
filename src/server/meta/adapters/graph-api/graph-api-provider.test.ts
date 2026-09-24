@@ -94,6 +94,36 @@ describe("GraphApiMetaAdsProvider", () => {
     expect(page.data[0]?.availability.conversions).toBe("null_from_source");
   });
 
+  it("never requests the invalid landing_page_views insights field and reads it from actions", async () => {
+    const fetchImpl = createFetch((url) => {
+      if (url.pathname === "/v26.0/act_123") {
+        return { id: "act_123", account_id: "123", name: "Live Account", currency: "USD", timezone_name: "Asia/Dhaka", account_status: 1 };
+      }
+      // Meta rejects the entire request with (#100) when this field is present.
+      expect(url.searchParams.get("fields")?.split(",")).not.toContain("landing_page_views");
+      return {
+        data: [
+          {
+            account_id: "123",
+            date_start: "2026-09-04",
+            date_stop: "2026-09-04",
+            spend: "10",
+            actions: [
+              { action_type: "link_click", value: "40" },
+              { action_type: "landing_page_view", value: "31" }
+            ]
+          }
+        ],
+        paging: { cursors: {} }
+      };
+    });
+
+    const provider = createGraphApiMetaAdsProvider({ accessToken: "test-token", graphApiVersion: "v26.0", fetchImpl });
+    const page = await provider.getInsights({ accountId: "act_123", level: "account", dateRange: { since: "2026-09-04", until: "2026-09-04" }, timeIncrement: 1 });
+
+    expect(page.data[0]?.engagementMetrics?.landing_page_views).toBe(31);
+  });
+
   it("maps breakdown values from Graph API rows", async () => {
     const fetchImpl = createFetch((url) => {
       if (url.pathname === "/v26.0/act_123") {

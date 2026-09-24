@@ -191,7 +191,7 @@ export default async function TrendsPage({ searchParams }: PageProps) {
                 formatMetric(data.previousAccountMetrics[key], { kind, currency: data.selectedAccount.currency }),
                 formatMetric(comparison.absoluteChange, { kind, currency: data.selectedAccount.currency }),
                 formatMetric(comparison.percentageChange, { kind: "percent" }),
-                comparison.direction === "up" ? <span key="up" className="inline-flex items-center gap-1 text-emerald-300"><ArrowUpRight className="h-4 w-4" />up</span> : comparison.direction === "down" ? <span key="down" className="inline-flex items-center gap-1 text-amber-300"><ArrowDownRight className="h-4 w-4" />down</span> : comparison.direction
+                comparison.direction === "up" ? <span key="up" className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><ArrowUpRight className="h-4 w-4" />up</span> : comparison.direction === "down" ? <span key="down" className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-300"><ArrowDownRight className="h-4 w-4" />down</span> : comparison.direction
               ];
             })}
           />
