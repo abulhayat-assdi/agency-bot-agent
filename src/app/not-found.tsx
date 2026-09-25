@@ -14,7 +14,7 @@ export default function NotFound() {
             The requested analytics route does not exist or is not available in this milestone.
           </p>
           <Button asChild className="mt-6">
-            <Link href="/dashboard">Return to dashboard</Link>
+            <Link href="/chat">Back to chat</Link>
           </Button>
         </CardContent>
       </Card>

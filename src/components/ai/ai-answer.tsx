@@ -20,7 +20,7 @@ export function AiAnswer({ result }: { result: GroundedAiAnswer }) {
           <CardDescription>Intent: {result.context.intent.replaceAll("_", " ")} · Generated from controlled read-only tool evidence.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="whitespace-pre-wrap rounded-3xl border border-border/80 bg-card/70 dark:border-white/10 dark:bg-slate-950/60 p-5 text-sm leading-7 text-foreground">{result.answer}</div>
+          <div className="whitespace-pre-wrap rounded-3xl border border-border/80 bg-card/70 dark:border-white/10 dark:bg-background p-5 text-sm leading-7 text-foreground">{result.answer}</div>
         </CardContent>
       </Card>
 

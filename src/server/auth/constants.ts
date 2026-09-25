@@ -3,6 +3,7 @@ export const SESSION_DURATION_SECONDS = 60 * 60 * 8;
 
 export const PROTECTED_PATH_PREFIXES = [
   "/",
+  "/chat",
   "/dashboard",
   "/clients",
   "/ad-accounts",
@@ -11,7 +12,11 @@ export const PROTECTED_PATH_PREFIXES = [
   "/ai-analyst",
   "/reports",
   "/email-reports",
-  "/settings"
+  "/settings",
+  "/sync",
+  "/campaigns",
+  "/adsets",
+  "/ads"
 ] as const;
 
 export const PUBLIC_PATH_PREFIXES = ["/login", "/api/health"] as const;

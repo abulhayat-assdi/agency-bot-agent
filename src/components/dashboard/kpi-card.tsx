@@ -11,11 +11,12 @@ interface KpiCardProps {
   accent?: "blue" | "green" | "purple" | "amber";
 }
 
+// Flat, Claude-style cards; the accent survives only as a thin top rule.
 const accentClasses = {
-  blue: "from-sky-500/14 to-blue-500/5 dark:from-sky-400/20 dark:to-blue-500/5",
-  green: "from-emerald-500/14 to-teal-500/5 dark:from-emerald-400/20 dark:to-teal-500/5",
-  purple: "from-violet-500/14 to-fuchsia-500/5 dark:from-violet-400/20 dark:to-fuchsia-500/5",
-  amber: "from-amber-500/18 to-orange-500/5 dark:from-amber-400/20 dark:to-orange-500/5"
+  blue: "border-t-primary/60",
+  green: "border-t-emerald-500/60",
+  purple: "border-t-violet-500/60",
+  amber: "border-t-amber-500/60"
 };
 
 export function KpiCard({ label, value, metric, helper, accent = "blue" }: KpiCardProps) {
@@ -23,8 +24,8 @@ export function KpiCard({ label, value, metric, helper, accent = "blue" }: KpiCa
   const isUnavailable = metric?.value === null;
 
   return (
-    <Card className="overflow-hidden">
-      <CardContent className={`bg-gradient-to-br ${accentClasses[accent]} p-5`}>
+    <Card className={`overflow-hidden border-t-2 ${accentClasses[accent]}`}>
+      <CardContent className="p-5">
         <div className="flex items-start justify-between gap-3">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
           {state ? <Badge variant={isUnavailable ? "warning" : "secondary"}>{state}</Badge> : null}

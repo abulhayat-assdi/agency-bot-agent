@@ -26,7 +26,7 @@ export function CapabilityGrid({
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {capabilities.map((capability) => (
-        <Card key={capability.key} className={capability.key === selectedKey ? "border-sky-400/50" : undefined}>
+        <Card key={capability.key} className={capability.key === selectedKey ? "border-primary/50" : undefined}>
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div>

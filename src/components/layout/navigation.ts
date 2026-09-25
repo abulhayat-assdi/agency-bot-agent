@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  Bot,
   BriefcaseBusiness,
   CalendarClock,
   DatabaseZap,
@@ -13,15 +12,15 @@ import {
   UsersRound
 } from "lucide-react";
 
+// The chat is the home screen; these pages hold the detailed tables and charts.
 export const primaryNavigation = [
   { href: "/dashboard", label: "Dashboard", icon: Gauge },
-  { href: "/clients", label: "Clients", icon: UsersRound },
   { href: "/ad-accounts", label: "Ad Accounts", icon: BriefcaseBusiness },
+  { href: "/clients", label: "Clients", icon: UsersRound },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/breakdowns", label: "Breakdowns", icon: Layers3 },
   { href: "/trends", label: "Trends", icon: LineChart },
   { href: "/sync", label: "Sync Ops", icon: DatabaseZap },
-  { href: "/ai-analyst", label: "AI Analyst", icon: Bot },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/email-reports", label: "Email Reports", icon: Mail },
   { href: "/settings", label: "Settings", icon: Settings }
 ] as const;

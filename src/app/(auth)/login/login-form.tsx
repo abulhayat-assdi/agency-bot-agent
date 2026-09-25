@@ -23,7 +23,7 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           required
-          className="h-11 w-full rounded-xl border border-input bg-card/70 dark:border-white/10 dark:bg-white/5 px-3 text-sm outline-none transition placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary/30"
+          className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30"
           placeholder="admin@example.com"
         />
       </div>
@@ -37,7 +37,7 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
-          className="h-11 w-full rounded-xl border border-input bg-card/70 dark:border-white/10 dark:bg-white/5 px-3 text-sm outline-none transition placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary/30"
+          className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30"
           placeholder="Enter password"
         />
       </div>

@@ -146,7 +146,7 @@ export function MetaIntegrationPanel() {
             {accounts.map((account) => {
               const state = freshness[account.id];
               return (
-                <li key={account.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border dark:border-white/10 bg-muted/60 dark:bg-slate-950/50 p-3 text-sm">
+                <li key={account.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border dark:border-white/10 bg-muted/60 dark:bg-muted/40 p-3 text-sm">
                   <div>
                     <div className="font-medium">{account.name}</div>
                     <div className="text-muted-foreground">

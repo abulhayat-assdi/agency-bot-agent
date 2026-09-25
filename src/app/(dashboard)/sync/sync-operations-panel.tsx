@@ -179,7 +179,7 @@ export function SyncOperationsPanel({
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Ad account</span>
               <select
-                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-slate-950/60 p-2"
+                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-background p-2"
                 value={form.accountId}
                 onChange={(event) => setForm({ ...form, accountId: event.target.value })}
               >
@@ -193,7 +193,7 @@ export function SyncOperationsPanel({
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Kind</span>
               <select
-                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-slate-950/60 p-2"
+                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-background p-2"
                 value={form.syncKind}
                 onChange={(event) => setForm({ ...form, syncKind: event.target.value })}
               >
@@ -208,7 +208,7 @@ export function SyncOperationsPanel({
               <span className="text-muted-foreground">Backfill start</span>
               <input
                 type="date"
-                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-slate-950/60 p-2"
+                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-background p-2"
                 value={form.dateStart}
                 onChange={(event) => setForm({ ...form, dateStart: event.target.value })}
               />
@@ -217,7 +217,7 @@ export function SyncOperationsPanel({
               <span className="text-muted-foreground">Backfill end</span>
               <input
                 type="date"
-                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-slate-950/60 p-2"
+                className="rounded-xl border border-border dark:border-white/10 bg-white dark:bg-background p-2"
                 value={form.dateEnd}
                 onChange={(event) => setForm({ ...form, dateEnd: event.target.value })}
               />
@@ -248,7 +248,7 @@ export function SyncOperationsPanel({
         <CardContent className="space-y-2">
           {runs.length === 0 && <p className="text-sm text-muted-foreground">No sync runs yet. Start a sync above.</p>}
           {runs.map((run) => (
-            <div key={run.runId} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border dark:border-white/10 bg-muted/60 dark:bg-slate-950/50 p-3 text-sm">
+            <div key={run.runId} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border dark:border-white/10 bg-muted/60 dark:bg-muted/40 p-3 text-sm">
               <div>
                 <div className="flex items-center gap-2 font-medium">
                   <Badge variant={run.status === "success" ? "success" : "warning"}>{run.status}</Badge>
@@ -301,7 +301,7 @@ export function SyncOperationsPanel({
             )}
             {selected.errors.length === 0 && <p className="text-sm text-muted-foreground">No recorded errors for this run.</p>}
             {selected.errors.map((entry) => (
-              <div key={entry.id} className="rounded-2xl border border-border dark:border-white/10 bg-muted/60 dark:bg-slate-950/50 p-3 text-sm">
+              <div key={entry.id} className="rounded-2xl border border-border dark:border-white/10 bg-muted/60 dark:bg-muted/40 p-3 text-sm">
                 <div className="font-medium">
                   {entry.category}
                   {entry.chunkIndex !== null && entry.chunkIndex !== undefined && ` · chunk ${entry.chunkIndex}`}

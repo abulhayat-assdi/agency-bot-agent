@@ -16,7 +16,7 @@ export async function proxy(request: NextRequest) {
   const session = await verifySessionToken(token, getSessionSecret());
 
   if (pathname === "/login" && session) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/chat", request.url));
   }
 
   if (isProtectedPath(pathname) && !session) {

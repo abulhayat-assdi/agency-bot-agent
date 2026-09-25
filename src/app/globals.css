@@ -2,46 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Claude-style palette: warm neutrals with a clay accent, light and dark. */
 @layer base {
   :root {
-    --background: 38 38% 96%;
-    --foreground: 222 34% 15%;
+    --background: 48 33% 97%;
+    --foreground: 60 3% 8%;
+    --sidebar: 51 30% 94%;
     --card: 0 0% 100%;
-    --card-foreground: 222 34% 15%;
-    --primary: 199 89% 43%;
+    --card-foreground: 60 3% 8%;
+    --primary: 15 55% 52%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 34 34% 90%;
-    --secondary-foreground: 222 34% 18%;
-    --muted: 35 30% 92%;
-    --muted-foreground: 220 12% 42%;
-    --accent: 166 57% 36%;
+    --secondary: 50 20% 92%;
+    --secondary-foreground: 60 3% 12%;
+    --muted: 50 20% 93%;
+    --muted-foreground: 53 3% 38%;
+    --accent: 15 55% 52%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%;
+    --destructive: 0 65% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 34 26% 84%;
-    --input: 34 26% 84%;
-    --ring: 199 89% 43%;
+    --border: 50 18% 86%;
+    --input: 50 18% 84%;
+    --ring: 15 55% 52%;
     --radius: 1rem;
+    color-scheme: light;
   }
 
   .dark {
-    --background: 222 47% 8%;
-    --foreground: 214 32% 91%;
-    --card: 222 47% 10%;
-    --card-foreground: 214 32% 91%;
-    --primary: 199 89% 48%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 14%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 268 80% 58%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 18%;
-    --input: 217 33% 18%;
-    --ring: 199 89% 48%;
+    --background: 60 3% 15%;
+    --foreground: 48 33% 96%;
+    --sidebar: 30 3% 11%;
+    --card: 60 3% 19%;
+    --card-foreground: 48 33% 96%;
+    --primary: 15 63% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 60 3% 22%;
+    --secondary-foreground: 48 33% 96%;
+    --muted: 60 3% 21%;
+    --muted-foreground: 45 6% 64%;
+    --accent: 15 63% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 60 4% 26%;
+    --input: 60 4% 30%;
+    --ring: 15 63% 60%;
+    color-scheme: dark;
   }
 
   * {
@@ -50,30 +55,80 @@
 
   body {
     @apply min-h-screen bg-background text-foreground antialiased;
-    background:
-      radial-gradient(circle at top left, rgba(14, 165, 233, 0.12), transparent 32rem),
-      radial-gradient(circle at top right, rgba(245, 158, 11, 0.10), transparent 28rem),
-      hsl(var(--background));
-  }
-
-  .dark body {
-    background:
-      radial-gradient(circle at top left, rgba(14, 165, 233, 0.20), transparent 34rem),
-      radial-gradient(circle at top right, rgba(124, 58, 237, 0.18), transparent 30rem),
-      hsl(var(--background));
   }
 }
 
 @layer components {
   .glass-panel {
-    @apply border border-border/80 bg-card/90 shadow-glow backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.045];
+    @apply border border-border bg-card;
   }
 
   .metric-surface {
-    @apply border border-border/80 bg-white/70 dark:border-white/10 dark:bg-white/[0.03];
+    @apply border border-border bg-card;
   }
 
   .section-eyebrow {
     @apply text-sm font-semibold uppercase tracking-[0.24em] text-primary;
+  }
+
+  .font-display {
+    font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  }
+}
+
+/* Chat answers rendered from Markdown. */
+@layer components {
+  .chat-prose {
+    @apply text-[15px] leading-7 text-foreground;
+  }
+  .chat-prose > * + * {
+    @apply mt-3;
+  }
+  .chat-prose h1,
+  .chat-prose h2,
+  .chat-prose h3 {
+    @apply mt-5 font-semibold;
+  }
+  .chat-prose h1 {
+    @apply text-xl;
+  }
+  .chat-prose h2 {
+    @apply text-lg;
+  }
+  .chat-prose h3 {
+    @apply text-base;
+  }
+  .chat-prose ul {
+    @apply list-disc space-y-1 pl-6;
+  }
+  .chat-prose ol {
+    @apply list-decimal space-y-1 pl-6;
+  }
+  .chat-prose strong {
+    @apply font-semibold;
+  }
+  .chat-prose a {
+    @apply text-primary underline underline-offset-2;
+  }
+  .chat-prose code {
+    @apply rounded bg-muted px-1.5 py-0.5 text-[13px];
+  }
+  .chat-prose pre {
+    @apply overflow-x-auto rounded-xl bg-muted p-3;
+  }
+  .chat-prose blockquote {
+    @apply border-l-2 border-border pl-4 text-muted-foreground;
+  }
+  .chat-prose table {
+    @apply w-full border-collapse text-sm;
+  }
+  .chat-prose th {
+    @apply border-b border-border px-3 py-2 text-left font-semibold text-muted-foreground;
+  }
+  .chat-prose td {
+    @apply border-b border-border/60 px-3 py-2 align-top tabular-nums;
+  }
+  .chat-prose hr {
+    @apply my-5 border-border;
   }
 }

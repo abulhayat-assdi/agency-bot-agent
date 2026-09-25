@@ -18,7 +18,7 @@ export function MetricsTable({
           <thead className="bg-muted/80 text-left text-xs uppercase tracking-[0.16em] text-muted-foreground dark:bg-white/5">
             <tr>
               {columns.map((column, index) => (
-                <th key={column} className={cn("px-4 py-3 font-semibold", index === 0 && "sticky left-0 bg-muted dark:bg-slate-900/95")}>
+                <th key={column} className={cn("px-4 py-3 font-semibold", index === 0 && "sticky left-0 bg-muted dark:bg-muted")}>
                   {column}
                 </th>
               ))}
@@ -29,7 +29,7 @@ export function MetricsTable({
               rows.map((row, rowIndex) => (
                 <tr key={rowIndex} className="transition hover:bg-primary/[0.04] dark:hover:bg-white/[0.03]">
                   {row.map((cell, cellIndex) => (
-                    <td key={cellIndex} className={cn("px-4 py-3 text-foreground", cellIndex === 0 && "sticky left-0 bg-card font-medium dark:bg-slate-950/95")}>
+                    <td key={cellIndex} className={cn("px-4 py-3 text-foreground", cellIndex === 0 && "sticky left-0 bg-card font-medium dark:bg-card")}>
                       {cell}
                     </td>
                   ))}

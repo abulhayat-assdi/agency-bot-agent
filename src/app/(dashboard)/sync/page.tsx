@@ -58,7 +58,7 @@ export default async function SyncOperationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 rounded-3xl border border-border/80 bg-card/80 dark:border-white/10 dark:bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/40 lg:flex-row lg:items-center">
+      <div className="flex flex-col justify-between gap-4 rounded-3xl border border-border/80 bg-card/80 dark:border-white/10 dark:bg-card p-6 shadow-2xl shadow-slate-950/40 lg:flex-row lg:items-center">
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.3em] text-primary">Sync operations</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight">Production sync engine</h2>
@@ -131,7 +131,7 @@ export default async function SyncOperationsPage() {
               {lifecycle.map((item, index) => (
                 <li key={item} className="rounded-2xl metric-surface p-4">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400/10 text-sm font-semibold text-sky-700 dark:text-sky-200">{index + 1}</span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary dark:text-primary">{index + 1}</span>
                     <span className="text-sm font-medium capitalize">{item}</span>
                   </div>
                 </li>

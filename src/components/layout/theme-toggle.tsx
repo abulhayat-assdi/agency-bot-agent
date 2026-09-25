@@ -1,41 +1,50 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const storageKey = "agency-ai-theme";
 
 type Theme = "light" | "dark";
 
-function getInitialTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-  return window.localStorage.getItem(storageKey) === "dark" ? "dark" : "light";
+// The root layout script applies the saved theme before paint; this mirrors the
+// <html> class so the label stays correct without an extra state sync.
+function subscribe(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  return () => observer.disconnect();
 }
 
-function applyTheme(theme: Theme) {
-  document.documentElement.classList.toggle("dark", theme === "dark");
-}
+const getTheme = (): Theme => (document.documentElement.classList.contains("dark") ? "dark" : "light");
 
-export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
-
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+export function ThemeToggle({ className }: { className?: string }) {
+  const theme = useSyncExternalStore<Theme>(subscribe, getTheme, () => "dark");
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
-    applyTheme(nextTheme);
-    window.localStorage.setItem(storageKey, nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+    try {
+      window.localStorage.setItem(storageKey, nextTheme);
+    } catch {
+      // Storage can be unavailable (private mode); the toggle still works for this page.
+    }
   }
 
+  const label = theme === "dark" ? "Light mode" : "Dark mode";
   return (
-    <Button type="button" variant="outline" size="sm" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
+    <button
+      type="button"
+      onClick={toggleTheme}
+      aria-label={`Switch to ${label.toLowerCase()}`}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition hover:bg-foreground/5 hover:text-foreground",
+        className
+      )}
+    >
       {theme === "dark" ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
-      {theme === "dark" ? "Light" : "Dark"}
-    </Button>
+      {label}
+    </button>
   );
 }

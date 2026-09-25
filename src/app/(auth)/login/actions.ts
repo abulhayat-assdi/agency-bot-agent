@@ -58,7 +58,7 @@ export async function loginAction(_previousState: LoginFormState, formData: Form
 
   logger.info("admin login succeeded", { email: user.email, userId: user.id });
   await auditAuthEvent("admin.login.success", user.id, user.email, headerValues);
-  redirect("/dashboard");
+  redirect("/chat");
 }
 
 async function auditAuthEvent(
